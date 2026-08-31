@@ -1,1 +1,1 @@
-# -futures-signal-scanner
+# futures-signal-scanner
