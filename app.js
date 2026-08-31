@@ -1,41 +1,33 @@
-let data=[], filter='all', ws=null;
-const $=id=>document.getElementById(id);
-function score(p){return Math.max(0,Math.min(100,50+p*4))}
-function money(n){return Number(n).toLocaleString('tr-TR',{maximumFractionDigits:8})}
-function render(){
- const rows=data.filter(x=>filter==='all'||(filter==='long'?x.score>=50:x.score<50)).slice(0,30);
- $('long').textContent=data.filter(x=>x.score>=50).length;
- $('short').textContent=data.filter(x=>x.score<50).length;
- $('count').textContent=data.length;
- $('list').innerHTML=rows.length?rows.map(x=>{
-   const isL=x.score>=50, pct=Math.round(x.score);
-   return `<article class="coin">
-    <div class="row"><div><span class="symbol">${x.s}</span><div class="muted">${isL?'LONG adayı':'SHORT adayı'} • Hacim $${compact(x.q)}</div></div>
-    <div style="text-align:right"><div class="price">${money(x.c)}</div><div class="${x.P>=0?'green':'red'}">${x.P>=0?'+':''}${Number(x.P).toFixed(2)}%</div></div>
-    <span class="badge ${isL?'lb':'sb'}">${isL?'LONG':'SHORT'} ${pct}%</span></div>
-    <div class="bar"><i style="width:${pct}%;background:${isL?'#49e49a':'#ff6476'}"></i></div>
-   </article>`}).join(''):'<div class="empty">Bu filtrede uygun coin yok.</div>';
+const API='https://fapi.binance.com',WS='wss://fstream.binance.com/market/stream?streams=!ticker@arr';let tickers=new Map(),signals=[],filter='all',ws=null,busy=false,lastScan=0;
+const $=id=>document.getElementById(id),n=v=>Number(v)||0,fmt=v=>Number(v).toLocaleString('tr-TR',{maximumFractionDigits:8}),compact=v=>{v=n(v);return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':v.toFixed(0)};
+async function api(path,p={}){let u=new URL(API+path);Object.entries(p).forEach(([k,v])=>u.searchParams.set(k,v));let r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error(r.status+' '+path);return r.json()}
+function ema(a,p){if(a.length<p)return null;let k=2/(p+1),e=a.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+function rsi(a,p=14){if(a.length<p+1)return 50;let g=0,l=0;for(let i=1;i<=p;i++){let d=a[i]-a[i-1];g+=d>0?d:0;l+=d<0?-d:0}let ag=g/p,al=l/p;for(let i=p+1;i<a.length;i++){let d=a[i]-a[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?-d:0))/p}return al===0?100:100-100/(1+ag/al)}
+function atr(c,p=14){if(c.length<p+1)return 0;let t=[];for(let i=1;i<c.length;i++)t.push(Math.max(c[i].h-c[i].l,Math.abs(c[i].h-c[i-1].c),Math.abs(c[i].l-c[i-1].c)));return t.slice(-p).reduce((a,b)=>a+b,0)/p}
+function macd(a){let vals=[];for(let i=26;i<=a.length;i++){let x=a.slice(0,i);vals.push(ema(x,12)-ema(x,26))}let m=vals.at(-1)||0,s=ema(vals,9)||0;return{h:m-s}}
+function parseK(r){return r.map(x=>({h:+x[2],l:+x[3],c:+x[4],v:+x[5]}))}
+function trend(c){let a=c.map(x=>x.c),p=a.at(-1),e20=ema(a,20),e50=ema(a,50),e200=ema(a,200),s=(e20>e50?1:-1)+(e50>e200?1:-1)+(p>e20?1:-1);return{s,e20,e50,e200}}
+function vr(c){let a=c.slice(-21,-1).map(x=>x.v),avg=a.reduce((x,y)=>x+y,0)/(a.length||1);return avg?c.at(-1).v/avg:1}
+function clamp(x){return Math.max(0,Math.min(100,x))}
+function side(x){return x>=55?'LONG':x<=45?'SHORT':'NÖTR'}
+async function analyze(symbol,t){
+ const [r5,r15,r1,f,oi,ls]=await Promise.all([
+  api('/fapi/v1/klines',{symbol,interval:'5m',limit:220}),api('/fapi/v1/klines',{symbol,interval:'15m',limit:220}),api('/fapi/v1/klines',{symbol,interval:'1h',limit:220}),
+  api('/fapi/v1/fundingRate',{symbol,limit:1}),api('/fapi/v1/openInterest',{symbol}),api('/futures/data/globalLongShortAccountRatio',{symbol,period:'5m',limit:1,contractType:'PERPETUAL'})
+ ]);
+ let c5=parseK(r5),c15=parseK(r15),c1=parseK(r1),a5=c5.map(x=>x.c),a15=c15.map(x=>x.c),a1=c1.map(x=>x.c);
+ let t5=trend(c5),t15=trend(c15),t1=trend(c1),r5v=rsi(a5),r15v=rsi(a15),r1v=rsi(a1),m5=macd(a5),m15=macd(a15),m1=macd(a1),volume=vr(c5),A=atr(c5),fund=n(f?.[0]?.fundingRate),oiNow=n(oi?.openInterest),lsr=n(ls?.[0]?.longShortRatio);
+ let score=50+t1.s*7+t15.s*5+t5.s*3+(r1v>52&&r1v<72?5:r1v<48&&r1v>28?-5:0)+(r15v>52&&r15v<75?4:r15v<48&&r15v>25?-4:0)+(m1.h>0?4:-4)+(m15.h>0?3:-3)+(m5.h>0?2:-2)+(volume>=1.25?(t5.s>0?4:-4):volume<.75?0:(t5.s>0?2:-2));
+ if(fund>.0005)score-=3;else if(fund<-.0005)score+=3;if(lsr>1.25)score-=2;else if(lsr&&lsr<.8)score+=2;
+ score=clamp(score);let s=side(score),confidence=s==='NÖTR'?Math.round(50+Math.abs(score-50)):Math.round(Math.max(score,100-score)),price=n(t?.c)||a5.at(-1),risk=Math.max(A*1.5,price*.004),sl,tp1,tp2,tp3;
+ if(s==='SHORT'){sl=price+risk;tp1=price-risk;tp2=price-risk*2;tp3=price-risk*3}else{sl=price-risk;tp1=price+risk;tp2=price+risk*2;tp3=price+risk*3}
+ let atrPct=price?A/price*100:0,lev=atrPct>3?2:atrPct>1.5?3:5;
+ return{symbol,price,change:n(t?.P),quote:n(t?.q),score:Math.round(score),side:s,confidence,entry:price,sl,tp1,tp2,tp3,lev,atrPct,rsi1:r1v,rsi15:r15v,vr:volume,funding:fund,oi:oiNow,lsr,trend1:t1.s,trend15:t15.s,trend5:t5.s,updated:Date.now()}
 }
-function compact(n){n=Number(n);if(n>=1e9)return (n/1e9).toFixed(1)+'B';if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toFixed(0)}
-function setFilter(f){
- filter=f;['all','longTab','shortTab'].forEach(id=>$(id)?.classList.remove('on'));
- $(f==='all'?'all':f==='long'?'longTab':'shortTab').classList.add('on');render();
-}
-function connect(){
- try{
-   ws=new WebSocket('wss://fstream.binance.com/market/stream?streams=!ticker@arr');
-   ws.onopen=()=>{$('status').textContent='● CANLI';$('status').classList.add('live')};
-   ws.onmessage=e=>{
-     try{
-       const msg=JSON.parse(e.data), arr=msg.data||[];
-       data=arr.filter(x=>x.s?.endsWith('USDT') && Number(x.q)>1000000)
-         .map(x=>({...x,score:score(Number(x.P))}))
-         .sort((a,b)=>b.score-a.score);
-       render();
-     }catch(_){}
-   };
-   ws.onclose=()=>{ $('status').textContent='YENİDEN BAĞLANIYOR'; setTimeout(connect,2000)};
-   ws.onerror=()=>ws.close();
- }catch(_){setTimeout(connect,3000)}
-}
-render(); connect();
+function render(){let rows=signals.filter(x=>filter==='all'||(filter==='long'?x.side==='LONG':x.side==='SHORT'));$('long').textContent=signals.filter(x=>x.side==='LONG'&&x.score>=65).length;$('short').textContent=signals.filter(x=>x.side==='SHORT'&&x.score<=35).length;$('count').textContent=tickers.size;if(!rows.length){$('list').innerHTML='<div class="empty">Henüz güçlü sinyal yok. Tarama devam ediyor…</div>';return}
+ $('list').innerHTML=rows.slice(0,12).map(x=>{let cls=x.side==='LONG'?'lb':x.side==='SHORT'?'sb':'watch',bar=x.side==='LONG'?x.score:x.side==='SHORT'?100-x.score:50;return `<article class="coin"><div class="row"><div><div class="symbol">${x.symbol}</div><div class="muted">${x.side==='NÖTR'?'İZLE':'1H '+x.side+' adayı'} • Hacim $${compact(x.quote)}</div></div><div style="text-align:right"><div class="price">${fmt(x.price)}</div><div class="${x.change>=0?'green':'red'}">${x.change>=0?'+':''}${x.change.toFixed(2)}%</div></div><span class="badge ${cls}">${x.side} ${x.confidence}/100</span></div><div class="bar"><i style="width:${bar}%;background:${x.side==='LONG'?'#49e49a':x.side==='SHORT'?'#ff6678':'#f4cf62'}"></i></div><div class="meta"><span>RSI 1H ${x.rsi1.toFixed(0)}</span><span>RSI 15M ${x.rsi15.toFixed(0)}</span><span>Hacim x${x.vr.toFixed(1)}</span><span>Funding ${(x.funding*100).toFixed(3)}%</span></div><button class="action" onclick="toggleDetail('${x.symbol}')">İşlem planını göster</button><div id="d-${x.symbol}" class="detail"><div class="muted">1 saatlik plan • teknik skor ${x.score}/100 • kaldıraç önerisi ${x.lev}x</div><div class="plan"><div class="box"><span>GİRİŞ</span><b>${fmt(x.entry)}</b></div><div class="box"><span>SL</span><b class="red">${fmt(x.sl)}</b></div><div class="box"><span>TP1</span><b class="green">${fmt(x.tp1)}</b></div><div class="box"><span>TP2</span><b class="green">${fmt(x.tp2)}</b></div></div><div class="grid"><div class="box"><span>TP3</span><b class="green">${fmt(x.tp3)}</b></div><div class="box"><span>ATR</span><b>${x.atrPct.toFixed(2)}%</b></div><div class="box"><span>OPEN INTEREST</span><b>${compact(x.oi)}</b></div><div class="box"><span>LONG/SHORT</span><b>${x.lsr?x.lsr.toFixed(2):'—'}</b></div></div><div class="meta"><span>5M ${x.trend5>0?'↑':'↓'}</span><span>15M ${x.trend15>0?'↑':'↓'}</span><span>1H ${x.trend1>0?'↑':'↓'}</span><span>${new Date(x.updated).toLocaleTimeString('tr-TR')}</span></div></div></article>`}).join('')}
+function toggleDetail(s){document.getElementById('d-'+s)?.classList.toggle('open')}
+function setFilter(f){filter=f;['all','longTab','shortTab'].forEach(id=>$(id)?.classList.remove('on'));$(f==='all'?'all':f==='long'?'longTab':'shortTab').classList.add('on');render()}
+async function scan(){if(busy||!tickers.size)return;busy=true;$('refresh').textContent='Teknik göstergeler hesaplanıyor…';try{let top=[...tickers.values()].filter(x=>x.s.endsWith('USDT')&&n(x.q)>1000000&&n(x.c)>0).sort((a,b)=>n(b.q)-n(a.q)).slice(0,8),out=[];for(let i=0;i<top.length;i+=2){let r=await Promise.all(top.slice(i,i+2).map(x=>analyze(x.s,x).catch(()=>null)));out.push(...r.filter(Boolean));await new Promise(r=>setTimeout(r,250))}signals=out.sort((a,b)=>Math.abs(b.score-50)-Math.abs(a.score-50));lastScan=Date.now();render();$('refresh').textContent='Son tarama '+new Date(lastScan).toLocaleTimeString('tr-TR')+' • 8 yüksek hacimli coin'}catch(e){$('refresh').textContent='Tarama hatası: '+e.message}finally{busy=false}}
+function connect(){try{ws=new WebSocket(WS);ws.onopen=()=>{$('status').textContent='● CANLI';$('status').classList.add('live')};ws.onmessage=e=>{try{let a=JSON.parse(e.data).data||[];a.forEach(x=>tickers.set(x.s,x));render();if(Date.now()-lastScan>90000)scan()}catch(_){}};ws.onclose=()=>{$('status').textContent='YENİDEN BAĞLANIYOR';setTimeout(connect,2000)};ws.onerror=()=>ws.close()}catch(_){setTimeout(connect,3000)}}
+render();connect();setInterval(scan,90000);
