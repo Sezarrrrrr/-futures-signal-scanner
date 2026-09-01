@@ -11,7 +11,6 @@ let scanTimer=null;
 let currentView='scan';
 let openDetailSymbol=null;
 
-
 const $=id=>document.getElementById(id);
 const n=v=>Number(v)||0;
 
@@ -54,9 +53,9 @@ function ema(a,p){
 
  let k=2/(p+1);
 
- let e=a
-  .slice(0,p)
-  .reduce((x,y)=>x+y,0)/p;
+ let e=
+  a.slice(0,p)
+   .reduce((x,y)=>x+y,0)/p;
 
  for(let i=p;i<a.length;i++){
 
@@ -144,6 +143,8 @@ function macd(a){
  let s=ema(vals,9)||0;
 
  return{
+  value:m,
+  signal:s,
   h:m-s
  };
 
@@ -192,9 +193,9 @@ function trend(c){
 
 function vr(c){
 
- let a=c
-  .slice(-21,-1)
-  .map(x=>x.v);
+ let a=
+  c.slice(-21,-1)
+   .map(x=>x.v);
 
  let avg=
   a.reduce((x,y)=>x+y,0)/
@@ -248,28 +249,54 @@ function candleBias(c){
  if(
   x.c>x.o &&
   body/range>.55
- )return 1;
+ )
+  return 1;
 
 
  if(
   x.c<x.o &&
   body/range>.55
- )return -1;
+ )
+  return -1;
 
 
  if(
   lower/range>.45 &&
   x.c>=x.o
- )return 1;
+ )
+  return 1;
 
 
  if(
   upper/range>.45 &&
   x.c<=x.o
- )return -1;
+ )
+  return -1;
 
 
  return 0;
+
+}
+
+
+function roundPrice(v){
+
+ if(!isFinite(v))
+  return v;
+
+ if(v>=1000)
+  return Number(v.toFixed(2));
+
+ if(v>=100)
+  return Number(v.toFixed(3));
+
+ if(v>=1)
+  return Number(v.toFixed(4));
+
+ if(v>=.01)
+  return Number(v.toFixed(6));
+
+ return Number(v.toFixed(8));
 
 }
 
@@ -368,10 +395,34 @@ async function analyze(symbol,t){
  let e1=ema(a1,20);
  let e150=ema(a1,50);
 
+ let e5=ema(a5,20);
+ let e550=ema(a5,50);
+
+
+ /*
+   V5 PUAN MOTORU
+
+   Yön:
+   1H 25 puan
+   15M 20 puan
+   5M 15 puan
+
+   Momentum:
+   RSI
+   MACD
+   EMA
+   Hacim
+   Funding
+   Long/Short
+   Mum teyidi
+ */
+
 
  let longPts=0;
  let shortPts=0;
 
+
+ // 1H trend
 
  if(t1.s>0)
   longPts+=20;
@@ -379,11 +430,15 @@ async function analyze(symbol,t){
   shortPts+=20;
 
 
+ // 15M trend
+
  if(t15.s>0)
   longPts+=15;
  else
   shortPts+=15;
 
+
+ // 5M trend
 
  if(t5.s>0)
   longPts+=10;
@@ -391,41 +446,71 @@ async function analyze(symbol,t){
   shortPts+=10;
 
 
+ // 1H RSI
+
  if(r1v>=52&&r1v<=70)
   longPts+=10;
+
  else if(r1v>=30&&r1v<=48)
   shortPts+=10;
 
 
+ // 15M RSI
+
  if(r15v>=52&&r15v<=72)
   longPts+=7;
+
  else if(r15v>=28&&r15v<=48)
   shortPts+=7;
 
 
+ // MACD
+
  if(m1.h>0)
   longPts+=8;
+
  else if(m1.h<0)
   shortPts+=8;
 
 
  if(m15.h>0)
   longPts+=7;
+
  else if(m15.h<0)
   shortPts+=7;
 
+
+ // 1H EMA
 
  if(
   price>e1 &&
   e1>e150
  )
   longPts+=8;
+
  else if(
   price<e1 &&
   e1<e150
  )
   shortPts+=8;
 
+
+ // 5M EMA
+
+ if(
+  price>e5 &&
+  e5>e550
+ )
+  longPts+=5;
+
+ else if(
+  price<e5 &&
+  e5<e550
+ )
+  shortPts+=5;
+
+
+ // Volume
 
  if(volume>=1.25){
 
@@ -438,6 +523,8 @@ async function analyze(symbol,t){
  }
 
 
+ // Funding
+
  if(fund>.0005)
   shortPts+=4;
 
@@ -445,12 +532,16 @@ async function analyze(symbol,t){
   longPts+=4;
 
 
+ // Long / Short ratio
+
  if(lsr>1.25)
   shortPts+=4;
 
  else if(lsr&&lsr<.8)
   longPts+=4;
 
+
+ // Son 5M mum
 
  let cb=candleBias(c5);
 
@@ -472,60 +563,246 @@ async function analyze(symbol,t){
  let s=side(score);
 
 
- let alignedLong=
+ /*
+   5M GİRİŞ TEYİT MOTORU
+ */
+
+
+ let last5=c5.at(-1);
+
+ let previous5=
+  c5.at(-2)||last5;
+
+
+ let bullishClose=
+  last5.c>last5.o;
+
+ let bearishClose=
+  last5.c<last5.o;
+
+
+ let longStructure=
   t1.s>0 &&
   t15.s>0 &&
-  t5.s>0 &&
-  cb>=0 &&
-  m5.h>=0;
+  t5.s>0;
 
 
- let alignedShort=
+ let shortStructure=
   t1.s<0 &&
   t15.s<0 &&
-  t5.s<0 &&
-  cb<=0 &&
-  m5.h<=0;
+  t5.s<0;
 
 
- let confirmation=
-  s==='LONG'&&alignedLong
-   ?'LONG TEYİT EDİLDİ'
-   :s==='SHORT'&&alignedShort
-   ?'SHORT TEYİT EDİLDİ'
-   :s==='NÖTR'
-   ?'İZLE'
-   :'TEYİT BEKLENİYOR';
+ let longMomentum=
+  m5.h>=0 &&
+  r5v>=48 &&
+  r5v<=72 &&
+  price>=e5;
 
 
- let risk=Math.max(
-  A*1.5,
-  price*.004
- );
+ let shortMomentum=
+  m5.h<=0 &&
+  r5v>=28 &&
+  r5v<=52 &&
+  price<=e5;
 
 
- let sl,tp1,tp2,tp3;
+ let longCandle=
+  bullishClose &&
+  cb>=0;
+
+
+ let shortCandle=
+  bearishClose &&
+  cb<=0;
+
+
+ let longConfirmed=
+  s==='LONG' &&
+  longStructure &&
+  longMomentum &&
+  longCandle;
+
+
+ let shortConfirmed=
+  s==='SHORT' &&
+  shortStructure &&
+  shortMomentum &&
+  shortCandle;
+
+
+ /*
+   ATR tabanlı işlem seviyeleri
+ */
+
+
+ let risk=
+  Math.max(
+   A*1.5,
+   price*.004
+  );
+
+
+ let zoneWidth=
+  Math.max(
+   A*.35,
+   price*.0015
+  );
+
+
+ let entryLow;
+ let entryHigh;
+ let confirmationPrice;
+ let invalidation;
+ let sl;
+ let tp1;
+ let tp2;
+ let tp3;
 
 
  if(s==='SHORT'){
 
-  sl=price+risk;
+  entryLow=
+   roundPrice(price-zoneWidth);
 
-  tp1=price-risk;
+  entryHigh=
+   roundPrice(price);
 
-  tp2=price-risk*2;
+  confirmationPrice=
+   roundPrice(
+    Math.min(
+     price,
+     last5.l
+    )
+   );
 
-  tp3=price-risk*3;
+  invalidation=
+   roundPrice(
+    price+risk
+   );
+
+  sl=invalidation;
+
+  tp1=
+   roundPrice(
+    price-risk
+   );
+
+  tp2=
+   roundPrice(
+    price-risk*2
+   );
+
+  tp3=
+   roundPrice(
+    price-risk*3
+   );
 
  }else{
 
-  sl=price-risk;
+  entryLow=
+   roundPrice(price);
 
-  tp1=price+risk;
+  entryHigh=
+   roundPrice(price+zoneWidth);
 
-  tp2=price+risk*2;
+  confirmationPrice=
+   roundPrice(
+    Math.max(
+     price,
+     last5.h
+    )
+   );
 
-  tp3=price+risk*3;
+  invalidation=
+   roundPrice(
+    price-risk
+   );
+
+  sl=invalidation;
+
+  tp1=
+   roundPrice(
+    price+risk
+   );
+
+  tp2=
+   roundPrice(
+    price+risk*2
+   );
+
+  tp3=
+   roundPrice(
+    price+risk*3
+   );
+
+ }
+
+
+ /*
+   Teyit durumu
+ */
+
+
+ let confirmation='İZLE';
+ let confirmationType='watch';
+
+
+ if(longConfirmed){
+
+  confirmation='LONG GİRİŞ UYGUN';
+  confirmationType='confirmed';
+
+ }
+
+ else if(shortConfirmed){
+
+  confirmation='SHORT GİRİŞ UYGUN';
+  confirmationType='confirmed';
+
+ }
+
+ else if(
+  s==='LONG' &&
+  longStructure
+ ){
+
+  confirmation='5M MUM TEYİDİ BEKLENİYOR';
+  confirmationType='waiting';
+
+ }
+
+ else if(
+  s==='SHORT' &&
+  shortStructure
+ ){
+
+  confirmation='5M MUM TEYİDİ BEKLENİYOR';
+  confirmationType='waiting';
+
+ }
+
+ else if(
+  s==='LONG'||
+  s==='SHORT'
+ ){
+
+  confirmation='TEYİT BEKLENİYOR';
+  confirmationType='waiting';
+
+ }
+
+
+ /*
+   Eğer yön nötr ise işlem seviyesi
+   sadece izleme amaçlıdır.
+ */
+
+
+ if(s==='NÖTR'){
+
+  confirmation='İZLE';
+  confirmationType='watch';
 
  }
 
@@ -546,17 +823,28 @@ async function analyze(symbol,t){
 
  let rr1=
   Math.abs(tp1-price)/
-  Math.abs(price-sl||1);
-
+  Math.max(Math.abs(price-sl),1e-12);
 
  let rr2=
   Math.abs(tp2-price)/
-  Math.abs(price-sl||1);
-
+  Math.max(Math.abs(price-sl),1e-12);
 
  let rr3=
   Math.abs(tp3-price)/
-  Math.abs(price-sl||1);
+  Math.max(Math.abs(price-sl),1e-12);
+
+
+ /*
+   Teyit edilmiş giriş için anlık fiyatın
+   üzerine otomatik giriş yazmak yerine
+   teyit fiyatını ayrı tutuyoruz.
+ */
+
+
+ let entry=
+  longConfirmed||shortConfirmed
+   ?price
+   :price;
 
 
  return{
@@ -577,7 +865,17 @@ async function analyze(symbol,t){
 
   confirmation,
 
-  entry:price,
+  confirmationType,
+
+  entry,
+
+  entryLow,
+
+  entryHigh,
+
+  confirmationPrice,
+
+  invalidation,
 
   sl,
 
@@ -617,11 +915,14 @@ async function analyze(symbol,t){
 
   trend5:t5.s,
 
+  candleBias:cb,
+
   updated:Date.now()
 
  };
 
 }
+
 
 function render(){
 
@@ -632,22 +933,28 @@ function render(){
    (filter==='short'&&x.side==='SHORT')
  );
 
+
  $('long').textContent=
   signals.filter(
    x=>x.side==='LONG'&&x.score>=65
   ).length;
+
 
  $('short').textContent=
   signals.filter(
    x=>x.side==='SHORT'&&x.score<=35
   ).length;
 
- $('count').textContent=tickers.size;
+
+ $('count').textContent=
+  tickers.size;
+
 
  let min=
   Number(
    localStorage.getItem('minScore')||65
   );
+
 
  rows=rows.filter(
   x=>
@@ -656,13 +963,16 @@ function render(){
    100-x.score>=min
  );
 
+
  if(!rows.length){
 
   $('list').innerHTML=
    '<div class="empty">Henüz güçlü sinyal yok. Tarama devam ediyor…</div>';
 
   return;
+
  }
+
 
  $('list').innerHTML=
   rows.slice(0,12).map(x=>{
@@ -674,12 +984,14 @@ function render(){
      ?'sb'
      :'watch';
 
+
    let bar=
     x.side==='LONG'
      ?x.score
      :x.side==='SHORT'
      ?100-x.score
      :50;
+
 
    return `
 
@@ -701,6 +1013,7 @@ Hacim $${compact(x.quote)}
 
 </div>
 
+
 <div style="text-align:right">
 
 <div class="price">
@@ -713,11 +1026,13 @@ ${x.change>=0?'+':''}${x.change.toFixed(2)}%
 
 </div>
 
+
 <span class="badge ${cls}">
 ${x.side} • ${x.score}/100
 </span>
 
 </div>
+
 
 <div class="bar">
 
@@ -734,6 +1049,7 @@ background:${
 
 </div>
 
+
 <div class="meta">
 
 <span>
@@ -742,6 +1058,10 @@ RSI 1H ${x.rsi1.toFixed(0)}
 
 <span>
 RSI 15M ${x.rsi15.toFixed(0)}
+</span>
+
+<span>
+RSI 5M ${x.rsi5.toFixed(0)}
 </span>
 
 <span>
@@ -754,6 +1074,7 @@ Funding ${(x.funding*100).toFixed(3)}%
 
 </div>
 
+
 <button
 class="action"
 onclick="toggleDetail('${x.symbol}')">
@@ -762,9 +1083,11 @@ onclick="toggleDetail('${x.symbol}')">
 
 </button>
 
+
 <div
 id="d-${x.symbol}"
 class="detail">
+
 
 <div class="muted">
 
@@ -777,89 +1100,229 @@ ${x.lev}x
 
 </div>
 
+
 <div class="plan">
 
-<div class="box">
-<span>GİRİŞ</span>
-<b>${fmt(x.entry)}</b>
-</div>
 
 <div class="box">
+
+<span>GİRİŞ BÖLGESİ</span>
+
+<b>
+${fmt(x.entryLow)}
+–
+${fmt(x.entryHigh)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>5M TEYİT</span>
+
+<b>
+${fmt(x.confirmationPrice)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>GEÇERSİZLEŞME</span>
+
+<b class="red">
+${fmt(x.invalidation)}
+</b>
+
+</div>
+
+
+<div class="box">
+
 <span>SL</span>
-<b class="red">${fmt(x.sl)}</b>
+
+<b class="red">
+${fmt(x.sl)}
+</b>
+
 </div>
 
+</div>
+
+
+<div class="grid">
+
+
 <div class="box">
+
 <span>TP1</span>
-<b class="green">${fmt(x.tp1)}</b>
+
+<b class="green">
+${fmt(x.tp1)}
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>TP2</span>
-<b class="green">${fmt(x.tp2)}</b>
-</div>
+
+<b class="green">
+${fmt(x.tp2)}
+</b>
 
 </div>
 
-<div class="grid">
 
 <div class="box">
+
 <span>TP3</span>
-<b class="green">${fmt(x.tp3)}</b>
+
+<b class="green">
+${fmt(x.tp3)}
+</b>
+
 </div>
+
 
 <div class="box">
-<span>R/R TP1</span>
-<b>${x.rr1.toFixed(2)}</b>
-</div>
 
-<div class="box">
-<span>R/R TP2</span>
-<b>${x.rr2.toFixed(2)}</b>
-</div>
+<span>KALDIRAÇ</span>
 
-<div class="box">
-<span>R/R TP3</span>
-<b>${x.rr3.toFixed(2)}</b>
+<b>
+${x.lev}x
+</b>
+
 </div>
 
 </div>
+
 
 <div class="grid">
 
+
 <div class="box">
+
+<span>R/R TP1</span>
+
+<b>
+${x.rr1.toFixed(2)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>R/R TP2</span>
+
+<b>
+${x.rr2.toFixed(2)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>R/R TP3</span>
+
+<b>
+${x.rr3.toFixed(2)}
+</b>
+
+</div>
+
+
+<div class="box">
+
 <span>ATR</span>
-<b>${x.atrPct.toFixed(2)}%</b>
+
+<b>
+${x.atrPct.toFixed(2)}%
+</b>
+
 </div>
 
+</div>
+
+
+<div class="grid">
+
+
 <div class="box">
+
 <span>OPEN INTEREST</span>
-<b>${compact(x.oi)}</b>
+
+<b>
+${compact(x.oi)}
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>LONG/SHORT</span>
-<b>${x.lsr?x.lsr.toFixed(2):'—'}</b>
+
+<b>
+${x.lsr?x.lsr.toFixed(2):'—'}
+</b>
+
 </div>
+
 
 <div class="box">
+
 <span>5M RSI</span>
-<b>${x.rsi5.toFixed(0)}</b>
+
+<b>
+${x.rsi5.toFixed(0)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>1H RSI</span>
+
+<b>
+${x.rsi1.toFixed(0)}
+</b>
+
 </div>
 
 </div>
+
 
 <div class="meta">
 
-<span>5M ${x.trend5>0?'↑':'↓'}</span>
-<span>15M ${x.trend15>0?'↑':'↓'}</span>
-<span>1H ${x.trend1>0?'↑':'↓'}</span>
+<span>
+5M ${x.trend5>0?'↑':'↓'}
+</span>
+
+<span>
+15M ${x.trend15>0?'↑':'↓'}
+</span>
+
+<span>
+1H ${x.trend1>0?'↑':'↓'}
+</span>
+
+<span>
+${x.candleBias>0?'Bullish mum':x.candleBias<0?'Bearish mum':'Nötr mum'}
+</span>
 
 <span>
 ${new Date(x.updated).toLocaleTimeString('tr-TR')}
 </span>
 
 </div>
+
 
 <button
 class="action"
@@ -869,6 +1332,7 @@ Bu sinyalle İşlem'e git
 
 </button>
 
+
 </div>
 
 </article>
@@ -877,9 +1341,9 @@ Bu sinyalle İşlem'e git
 
   }).join('');
 
+
  /*
-   Tarama yenilendiğinde daha önce açık olan
-   işlem planını tekrar aç.
+   Tarama sonrası açık planı koru.
  */
 
  if(openDetailSymbol){
@@ -897,19 +1361,30 @@ Bu sinyalle İşlem'e git
 }
 
 
-
-
 function toggleDetail(s){
 
- const el=document.getElementById('d-'+s);
+ const el=
+  document.getElementById(
+   'd-'+s
+  );
 
  if(!el)return;
 
- const wasOpen=el.classList.contains('open');
+ const wasOpen=
+  el.classList.contains('open');
+
+
+ /*
+   Kullanıcı başka bir coin açtığında
+   önceki açık planı kapat.
+ */
 
  document
   .querySelectorAll('.detail.open')
-  .forEach(x=>x.classList.remove('open'));
+  .forEach(x=>
+   x.classList.remove('open')
+  );
+
 
  if(wasOpen){
 
@@ -918,6 +1393,7 @@ function toggleDetail(s){
  }else{
 
   el.classList.add('open');
+
   openDetailSymbol=s;
 
  }
@@ -963,13 +1439,20 @@ function showView(v){
   'trade',
   'history',
   'settings'
- ].forEach(x=>
-  $(x+'View')
-   .classList.toggle(
+ ].forEach(x=>{
+
+  const el=$(x+'View');
+
+  if(el){
+
+   el.classList.toggle(
     'hidden',
     x!==v
-   )
- );
+   );
+
+  }
+
+ });
 
 
  document
@@ -996,11 +1479,13 @@ function showView(v){
 
  if(v==='settings'){
 
-  $('minScore').value=
-   localStorage.getItem('minScore')||65;
+  if($('minScore'))
+   $('minScore').value=
+    localStorage.getItem('minScore')||65;
 
-  $('scanSeconds').value=
-   localStorage.getItem('scanSeconds')||90;
+  if($('scanSeconds'))
+   $('scanSeconds').value=
+    localStorage.getItem('scanSeconds')||90;
 
  }
 
@@ -1020,6 +1505,10 @@ function renderMarkets(){
     (a,b)=>n(b.q)-n(a.q)
    )
    .slice(0,30);
+
+
+ if(!$('marketList'))
+  return;
 
 
  $('marketList').innerHTML=
@@ -1051,6 +1540,10 @@ ${n(x.P)>=0?'+':''}${n(x.P).toFixed(2)}%
 
 function populateTrade(){
 
+ if(!$('tradeCoin'))
+  return;
+
+
  let list=
   signals.filter(
    x=>x.side!=='NÖTR'
@@ -1077,20 +1570,34 @@ ${x.symbol} • ${x.side} ${x.score}/100
 
 function applyTradeFromSelection(){
 
+ if(!$('tradeCoin'))
+  return;
+
+
  let x=
   signals.find(
    s=>s.symbol===$('tradeCoin').value
   );
 
 
- if(!x)return;
+ if(!x)
+  return;
 
 
- $('tradeSide').value=x.side;
- $('tradeLev').value=x.lev;
- $('tradeEntry').value=x.entry;
- $('tradeSL').value=x.sl;
- $('tradeTP1').value=x.tp1;
+ if($('tradeSide'))
+  $('tradeSide').value=x.side;
+
+ if($('tradeLev'))
+  $('tradeLev').value=x.lev;
+
+ if($('tradeEntry'))
+  $('tradeEntry').value=x.entry;
+
+ if($('tradeSL'))
+  $('tradeSL').value=x.sl;
+
+ if($('tradeTP1'))
+  $('tradeTP1').value=x.tp1;
 
 
  calcTrade();
@@ -1102,7 +1609,8 @@ function prepareTrade(s){
 
  showView('trade');
 
- $('tradeCoin').value=s;
+ if($('tradeCoin'))
+  $('tradeCoin').value=s;
 
  applyTradeFromSelection();
 
@@ -1111,14 +1619,30 @@ function prepareTrade(s){
 
 function calcTrade(){
 
+ if(
+  !$('tradeCapital')||
+  !$('tradeEntry')||
+  !$('tradeSL')||
+  !$('tradeTP1')||
+  !$('tradeLev')||
+  !$('calcResult')
+ )
+  return;
+
+
  let cap=n($('tradeCapital').value);
+
  let entry=n($('tradeEntry').value);
+
  let sl=n($('tradeSL').value);
+
  let tp=n($('tradeTP1').value);
+
  let lev=n($('tradeLev').value);
 
 
- if(!cap||!entry||!sl||!tp)return;
+ if(!cap||!entry||!sl||!tp)
+  return;
 
 
  let riskPct=
@@ -1128,7 +1652,10 @@ function calcTrade(){
 
  let rr=
   Math.abs(tp-entry)/
-  Math.abs(entry-sl||1);
+  Math.max(
+   Math.abs(entry-sl),
+   1e-12
+  );
 
 
  let notional=
@@ -1160,6 +1687,10 @@ Pozisyon notional:
 
 
 function savePaperTrade(){
+
+ if(!$('tradeCoin'))
+  return;
+
 
  let rec={
 
@@ -1197,7 +1728,9 @@ function savePaperTrade(){
 
  localStorage.setItem(
   'paperHistory',
-  JSON.stringify(h.slice(0,50))
+  JSON.stringify(
+   h.slice(0,50)
+  )
  );
 
 
@@ -1212,6 +1745,10 @@ function savePaperTrade(){
 
 
 function renderHistory(){
+
+ if(!$('historyList'))
+  return;
+
 
  let h=
   JSON.parse(
@@ -1259,6 +1796,10 @@ ${x.status}
 
 
 function saveSettings(){
+
+ if(!$('minScore')||!$('scanSeconds'))
+  return;
+
 
  let m=Math.min(
   95,
@@ -1335,14 +1876,16 @@ async function scan(){
  if(
   busy||
   !tickers.size
- )return;
+ )
+  return;
 
 
  busy=true;
 
 
- $('refresh').textContent=
-  'V4 teknik motoru hesaplıyor…';
+ if($('refresh'))
+  $('refresh').textContent=
+   'V5 teknik + giriş teyit motoru hesaplıyor…';
 
 
  try{
@@ -1416,17 +1959,19 @@ async function scan(){
    populateTrade();
 
 
-  $('refresh').textContent=
-   'Son tarama '+
-   new Date(lastScan)
-    .toLocaleTimeString('tr-TR')+
-   ' • V4 • 8 yüksek hacimli coin';
+  if($('refresh'))
+   $('refresh').textContent=
+    'Son tarama '+
+    new Date(lastScan)
+     .toLocaleTimeString('tr-TR')+
+    ' • V5 • 5M giriş teyidi • 8 yüksek hacimli coin';
 
 
  }catch(e){
 
-  $('refresh').textContent=
-   'Tarama hatası: '+e.message;
+  if($('refresh'))
+   $('refresh').textContent=
+    'Tarama hatası: '+e.message;
 
  }finally{
 
@@ -1446,56 +1991,66 @@ function connect(){
 
   ws.onopen=()=>{
 
-   $('status').textContent=
-    '● CANLI';
+   if($('status')){
 
-   $('status')
-    .classList.add('live');
+    $('status').textContent=
+     '● CANLI';
+
+    $('status')
+     .classList.add('live');
+
+   }
 
   };
 
 
- ws.onmessage=e=>{
+  ws.onmessage=e=>{
 
-  try{
+   try{
 
     let a=
-      JSON.parse(e.data).data||[];
+     JSON.parse(e.data).data||[];
 
 
     a.forEach(x=>
-      tickers.set(x.s,x)
+     tickers.set(x.s,x)
     );
 
 
     /*
-      Canlı ticker güncellemesi geldiğinde
-      ana listeyi yeniden çizme.
+      Ana listeyi her ticker mesajında
+      yeniden oluşturmuyoruz.
 
-      Aksi halde açık olan işlem planları
-      her fiyat değişiminde kapanır.
+      Böylece işlem planı kapanmaz.
     */
 
 
     if(currentView==='markets')
-      renderMarkets();
+     renderMarkets();
 
 
     if(
-      Date.now()-lastScan>90000
+     Date.now()-lastScan>
+     (
+      n(
+       localStorage.getItem('scanSeconds')
+      )||90
+     )*1000
     )
-      scan();
+     scan();
 
 
-  }catch(_){}
+   }catch(_){}
 
-};
+  };
 
 
   ws.onclose=()=>{
 
-   $('status').textContent=
-    'YENİDEN BAĞLANIYOR';
+   if($('status'))
+    $('status').textContent=
+     'YENİDEN BAĞLANIYOR';
+
 
    setTimeout(
     connect,
@@ -1520,11 +2075,20 @@ function connect(){
 }
 
 
-$('tradeCoin')
- .addEventListener(
-  'change',
-  applyTradeFromSelection
- );
+/*
+  Form elemanları mevcutsa eventleri bağla.
+ */
+
+
+if($('tradeCoin')){
+
+ $('tradeCoin')
+  .addEventListener(
+   'change',
+   applyTradeFromSelection
+  );
+
+}
 
 
 [
@@ -1533,14 +2097,20 @@ $('tradeCoin')
  'tradeTP1',
  'tradeLev',
  'tradeCapital'
-].forEach(id=>
+].forEach(id=>{
 
- $(id).addEventListener(
-  'input',
-  calcTrade
- )
+ const el=$(id);
 
-);
+ if(el){
+
+  el.addEventListener(
+   'input',
+   calcTrade
+  );
+
+ }
+
+});
 
 
 render();
@@ -1553,7 +2123,9 @@ scan();
 scanTimer=
  setInterval(
   scan,
-  (n(
-   localStorage.getItem('scanSeconds')
-  )||90)*1000
+  (
+   n(
+    localStorage.getItem('scanSeconds')
+   )||90
+  )*1000
  );
