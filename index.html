@@ -1,63 +1,745 @@
+
 <!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050b14">
-<title>Futures Signal Scanner v3</title>
+<title>Futures Signal Scanner v4</title>
 <link rel="manifest" href="manifest.webmanifest">
+
 <style>
-*{box-sizing:border-box}body{margin:0;background:#050b14;color:#eef4ff;font-family:system-ui,-apple-system,sans-serif}
-.app{max-width:720px;margin:auto;padding:16px 13px 92px}.top{display:flex;justify-content:space-between;gap:10px}
-h1{font-size:23px;margin:0}.sub,.muted{color:#8190a6;font-size:11px}.status{padding:7px 10px;border-radius:20px;background:#102238;color:#9db0c8;font-size:11px}.live{color:#55e39a}
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.stat,.coin,.panel,.detail{background:#0b1421;border:1px solid #17263a;border-radius:16px}.stat{padding:11px}.stat b{display:block;font-size:18px;margin-top:4px}
-.green{color:#49e49a}.red{color:#ff6678}.yellow{color:#f4cf62}.tabs{display:flex;background:#0b1421;border-radius:12px;padding:4px}.tabs button{flex:1;border:0;background:transparent;color:#8391a6;padding:10px;border-radius:9px;font-weight:800}.tabs .on{background:#17283f;color:#fff}
-.coin{padding:13px;margin:9px 0}.row{display:flex;align-items:center;justify-content:space-between;gap:8px}.symbol{font-weight:850}.price{font-weight:750}.badge{font-size:11px;font-weight:850;padding:6px 8px;border-radius:8px}.lb{background:#0b3a2b;color:#55e39a}.sb{background:#421b25;color:#ff7181}.watch{background:#2b2a18;color:#f4cf62}
-.bar{height:5px;background:#17263a;border-radius:5px;margin-top:11px;overflow:hidden}.bar i{display:block;height:100%}.meta{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap}.meta span{font-size:10px;color:#8b99ad}
-.action,.primary,.secondary{margin-top:10px;width:100%;border:1px solid #263950;background:#112036;color:#eaf2ff;border-radius:10px;padding:10px;font-weight:750}.primary{background:#163b31}.secondary{background:#251923}
-.detail{display:none;padding:14px;margin-top:10px}.detail.open{display:block}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:9px}.box{background:#0d1827;border-radius:11px;padding:9px}.box span{display:block;color:#7e8da3;font-size:10px}.box b{display:block;margin-top:4px;font-size:13px}.plan{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
-.panel{padding:14px;margin:10px 0}.panel h2{font-size:17px;margin:0 0 10px}.hidden{display:none}.marketrow{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #142236;font-size:12px}
-input,select{width:100%;padding:10px;border-radius:9px;border:1px solid #263950;background:#09121f;color:#eef4ff;margin-top:5px}label{display:block;color:#8492a7;font-size:10px;margin-top:9px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.calc{font-size:12px;line-height:1.7;margin-top:10px}.history{padding:10px 0;border-bottom:1px solid #142236}
-.empty{text-align:center;color:#8290a4;padding:30px 8px}.refresh{font-size:10px;color:#718198;margin:8px 2px}.note{font-size:10px;color:#6f8098;line-height:1.45}
-.bottom{position:fixed;bottom:0;left:0;right:0;background:#07101d;border-top:1px solid #16243a;z-index:10}.bottom nav{max-width:720px;margin:auto;display:flex;justify-content:space-around;padding:7px 3px}.navbtn{border:0;background:transparent;color:#73839a;font-size:10px;padding:5px 3px}.navbtn.active{color:#5de5a0}.navicon{display:block;font-size:17px;margin-bottom:2px}
-@media(max-width:420px){.navbtn{font-size:9px}.plan{grid-template-columns:repeat(2,1fr)}}
+*{box-sizing:border-box}
+
+body{
+margin:0;
+background:#050b14;
+color:#eef4ff;
+font-family:system-ui,-apple-system,sans-serif
+}
+
+.app{
+max-width:720px;
+margin:auto;
+padding:16px 13px 92px
+}
+
+.top{
+display:flex;
+justify-content:space-between;
+gap:10px
+}
+
+h1{
+font-size:23px;
+margin:0
+}
+
+.sub,.muted{
+color:#8190a6;
+font-size:11px
+}
+
+.status{
+padding:7px 10px;
+border-radius:20px;
+background:#102238;
+color:#9db0c8;
+font-size:11px
+}
+
+.live{
+color:#55e39a
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:8px;
+margin:16px 0
+}
+
+.stat,.coin,.panel,.detail{
+background:#0b1421;
+border:1px solid #17263a;
+border-radius:16px
+}
+
+.stat{
+padding:11px
+}
+
+.stat b{
+display:block;
+font-size:18px;
+margin-top:4px
+}
+
+.green{color:#49e49a}
+.red{color:#ff6678}
+.yellow{color:#f4cf62}
+
+.tabs{
+display:flex;
+background:#0b1421;
+border-radius:12px;
+padding:4px
+}
+
+.tabs button{
+flex:1;
+border:0;
+background:transparent;
+color:#8391a6;
+padding:10px;
+border-radius:9px;
+font-weight:800
+}
+
+.tabs .on{
+background:#17283f;
+color:#fff
+}
+
+.refresh{
+font-size:10px;
+color:#718198;
+margin:8px 2px
+}
+
+.coin{
+padding:13px;
+margin:9px 0
+}
+
+.row{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:8px
+}
+
+.symbol{
+font-weight:850
+}
+
+.price{
+font-weight:750
+}
+
+.badge{
+font-size:11px;
+font-weight:850;
+padding:6px 8px;
+border-radius:8px
+}
+
+.lb{
+background:#0b3a2b;
+color:#55e39a
+}
+
+.sb{
+background:#421b25;
+color:#ff7181
+}
+
+.watch{
+background:#2b2a18;
+color:#f4cf62
+}
+
+.bar{
+height:5px;
+background:#17263a;
+border-radius:5px;
+margin-top:11px;
+overflow:hidden
+}
+
+.bar i{
+display:block;
+height:100%
+}
+
+.meta{
+display:flex;
+gap:10px;
+margin-top:9px;
+flex-wrap:wrap
+}
+
+.meta span{
+font-size:10px;
+color:#8b99ad
+}
+
+.action,.primary,.secondary{
+margin-top:10px;
+width:100%;
+border:1px solid #263950;
+background:#112036;
+color:#eaf2ff;
+border-radius:10px;
+padding:10px;
+font-weight:750
+}
+
+.primary{
+background:#163b31
+}
+
+.secondary{
+background:#251923
+}
+
+.detail{
+display:none;
+padding:14px;
+margin-top:10px
+}
+
+.detail.open{
+display:block
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+margin-top:9px
+}
+
+.box{
+background:#0d1827;
+border-radius:11px;
+padding:9px
+}
+
+.box span{
+display:block;
+color:#7e8da3;
+font-size:10px
+}
+
+.box b{
+display:block;
+margin-top:4px;
+font-size:13px
+}
+
+.plan{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:7px;
+margin-top:9px
+}
+
+.panel{
+padding:14px;
+margin:10px 0
+}
+
+.panel h2{
+font-size:17px;
+margin:0 0 10px
+}
+
+.hidden{
+display:none
+}
+
+.marketrow{
+display:grid;
+grid-template-columns:1.2fr 1fr 1fr;
+gap:8px;
+padding:10px 0;
+border-bottom:1px solid #142236;
+font-size:12px
+}
+
+input,select{
+width:100%;
+padding:10px;
+border-radius:9px;
+border:1px solid #263950;
+background:#09121f;
+color:#eef4ff;
+margin-top:5px
+}
+
+label{
+display:block;
+color:#8492a7;
+font-size:10px;
+margin-top:9px
+}
+
+.two{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px
+}
+
+.calc{
+font-size:12px;
+line-height:1.7;
+margin-top:10px
+}
+
+.history{
+padding:10px 0;
+border-bottom:1px solid #142236
+}
+
+.empty{
+text-align:center;
+color:#8290a4;
+padding:30px 8px
+}
+
+.note{
+font-size:10px;
+color:#6f8098;
+line-height:1.45
+}
+
+.bottom{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+background:#07101d;
+border-top:1px solid #16243a;
+z-index:10
+}
+
+.bottom nav{
+max-width:720px;
+margin:auto;
+display:flex;
+justify-content:space-around;
+padding:7px 3px
+}
+
+.navbtn{
+border:0;
+background:transparent;
+color:#73839a;
+font-size:10px;
+padding:5px 3px
+}
+
+.navbtn.active{
+color:#5de5a0
+}
+
+.navicon{
+display:block;
+font-size:17px;
+margin-bottom:2px
+}
+
+@media(max-width:420px){
+.navbtn{
+font-size:9px
+}
+
+.plan{
+grid-template-columns:repeat(2,1fr)
+}
+}
 </style>
 </head>
+
 <body>
+
 <main class="app">
-<div class="top"><div><h1 id="title">TARAMA / FIRSATLAR</h1><div class="sub">Binance Futures • Sinyal Motoru v3</div></div><div id="status" class="status">BAĞLANIYOR</div></div>
+
+<div class="top">
+
+<div>
+<h1>TARAMA / FIRSATLAR</h1>
+<div class="sub">
+Binance Futures • Sinyal Motoru v4
+</div>
+</div>
+
+<div id="status" class="status">
+BAĞLANIYOR
+</div>
+
+</div>
+
 
 <section id="scanView">
-<div class="cards"><div class="stat"><span class="muted">GÜÇLÜ LONG</span><b id="long" class="green">—</b></div><div class="stat"><span class="muted">GÜÇLÜ SHORT</span><b id="short" class="red">—</b></div><div class="stat"><span class="muted">TARANAN</span><b id="count" class="yellow">—</b></div></div>
-<div class="tabs"><button id="all" class="on" onclick="setFilter('all')">Tümü</button><button id="longTab" onclick="setFilter('long')">LONG</button><button id="shortTab" onclick="setFilter('short')">SHORT</button></div>
-<div class="refresh" id="refresh">Analiz hazırlanıyor…</div><div id="list"><div class="empty">Binance verisi bekleniyor…</div></div>
+
+<div class="cards">
+
+<div class="stat">
+<span class="muted">GÜÇLÜ LONG</span>
+<b id="long" class="green">—</b>
+</div>
+
+<div class="stat">
+<span class="muted">GÜÇLÜ SHORT</span>
+<b id="short" class="red">—</b>
+</div>
+
+<div class="stat">
+<span class="muted">TARANAN</span>
+<b id="count" class="yellow">—</b>
+</div>
+
+</div>
+
+
+<div class="tabs">
+
+<button id="all"
+class="on"
+onclick="setFilter('all')">
+Tümü
+</button>
+
+<button id="longTab"
+onclick="setFilter('long')">
+LONG
+</button>
+
+<button id="shortTab"
+onclick="setFilter('short')">
+SHORT
+</button>
+
+</div>
+
+
+<div class="refresh" id="refresh">
+Analiz hazırlanıyor…
+</div>
+
+
+<div id="list">
+
+<div class="empty">
+Binance verisi bekleniyor…
+</div>
+
+</div>
+
 </section>
 
-<section id="marketsView" class="hidden"><div class="panel"><h2>📊 Piyasalar</h2><div class="muted">Canlı USDT-M Futures • yüksek hacimli pariteler</div><div id="marketList"></div></div></section>
 
-<section id="tradeView" class="hidden"><div class="panel"><h2>＋ İşlem / Paper Trading</h2><div class="muted">Gerçek emir göndermez. Seçtiğin sinyal üzerinden risk planı hesaplar.</div>
-<label>Coin<select id="tradeCoin"></select></label>
-<div class="two"><div><label>Yön<select id="tradeSide"><option>LONG</option><option>SHORT</option></select></label></div><div><label>Kaldıraç<select id="tradeLev"><option>2</option><option>3</option><option selected>5</option><option>10</option></select></label></div></div>
-<div class="two"><div><label>Giriş<input id="tradeEntry" type="number" step="any"></label></div><div><label>Sermaye (USDT)<input id="tradeCapital" type="number" value="100" min="1"></label></div></div>
-<div class="two"><div><label>Stop Loss<input id="tradeSL" type="number" step="any"></label></div><div><label>TP1<input id="tradeTP1" type="number" step="any"></label></div></div>
-<button class="primary" onclick="savePaperTrade()">Paper işlemi kaydet</button><div id="calcResult" class="calc"></div></div></section>
+<section id="marketsView" class="hidden">
 
-<section id="historyView" class="hidden"><div class="panel"><h2>▣ Geçmiş</h2><div class="muted">Bu cihazda tutulan paper işlemleri.</div><div id="historyList"></div></div></section>
+<div class="panel">
 
-<section id="settingsView" class="hidden"><div class="panel"><h2>⚙ Ayarlar</h2>
-<label>Minimum güçlü sinyal skoru<input id="minScore" type="number" min="50" max="95" value="65"></label>
-<label>Tarama aralığı (saniye)<input id="scanSeconds" type="number" min="30" max="600" value="90"></label>
-<button class="primary" onclick="saveSettings()">Ayarları kaydet</button>
-<button class="secondary" onclick="clearHistory()">Paper geçmişini temizle</button>
-<div class="note">Skor bir kazanma olasılığı değildir. Gerçek işlem kararı vermeden önce backtest ve paper trading yapılmalıdır.</div></div></section>
+<h2>📊 Piyasalar</h2>
+
+<div class="muted">
+Canlı USDT-M Futures • yüksek hacimli pariteler
+</div>
+
+<div id="marketList"></div>
+
+</div>
+
+</section>
+
+
+<section id="tradeView" class="hidden">
+
+<div class="panel">
+
+<h2>＋ İşlem / Paper Trading</h2>
+
+<div class="muted">
+Gerçek emir göndermez. Seçtiğin sinyal üzerinden risk planı hesaplar.
+</div>
+
+
+<label>
+Coin
+
+<select id="tradeCoin"></select>
+
+</label>
+
+
+<div class="two">
+
+<div>
+
+<label>
+Yön
+
+<select id="tradeSide">
+
+<option>LONG</option>
+<option>SHORT</option>
+
+</select>
+
+</label>
+
+</div>
+
+
+<div>
+
+<label>
+Kaldıraç
+
+<select id="tradeLev">
+
+<option>2</option>
+<option>3</option>
+<option selected>5</option>
+<option>10</option>
+
+</select>
+
+</label>
+
+</div>
+
+</div>
+
+
+<div class="two">
+
+<div>
+
+<label>
+Giriş
+
+<input
+id="tradeEntry"
+type="number"
+step="any">
+
+</label>
+
+</div>
+
+
+<div>
+
+<label>
+Sermaye (USDT)
+
+<input
+id="tradeCapital"
+type="number"
+value="100"
+min="1">
+
+</label>
+
+</div>
+
+</div>
+
+
+<div class="two">
+
+<div>
+
+<label>
+Stop Loss
+
+<input
+id="tradeSL"
+type="number"
+step="any">
+
+</label>
+
+</div>
+
+
+<div>
+
+<label>
+TP1
+
+<input
+id="tradeTP1"
+type="number"
+step="any">
+
+</label>
+
+</div>
+
+</div>
+
+
+<button
+class="primary"
+onclick="savePaperTrade()">
+
+Paper işlemi kaydet
+
+</button>
+
+
+<div id="calcResult" class="calc"></div>
+
+</div>
+
+</section>
+
+
+<section id="historyView" class="hidden">
+
+<div class="panel">
+
+<h2>▣ Geçmiş</h2>
+
+<div class="muted">
+Bu cihazda tutulan paper işlemleri.
+</div>
+
+<div id="historyList"></div>
+
+</div>
+
+</section>
+
+
+<section id="settingsView" class="hidden">
+
+<div class="panel">
+
+<h2>⚙ Ayarlar</h2>
+
+
+<label>
+
+Minimum güçlü sinyal skoru
+
+<input
+id="minScore"
+type="number"
+min="50"
+max="95"
+value="65">
+
+</label>
+
+
+<label>
+
+Tarama aralığı (saniye)
+
+<input
+id="scanSeconds"
+type="number"
+min="30"
+max="600"
+value="90">
+
+</label>
+
+
+<button
+class="primary"
+onclick="saveSettings()">
+
+Ayarları kaydet
+
+</button>
+
+
+<button
+class="secondary"
+onclick="clearHistory()">
+
+Paper geçmişini temizle
+
+</button>
+
+
+<div class="note">
+
+Teknik Güç puanı kazanma olasılığı değildir.
+Gerçek işlem kararı vermeden önce backtest ve paper trading yapılmalıdır.
+
+</div>
+
+</div>
+
+</section>
+
 </main>
 
-<div class="bottom"><nav>
-<button class="navbtn active" data-view="scan" onclick="showView('scan')"><span class="navicon">⌁</span>Tarama</button>
-<button class="navbtn" data-view="markets" onclick="showView('markets')"><span class="navicon">◉</span>Piyasalar</button>
-<button class="navbtn" data-view="trade" onclick="showView('trade')"><span class="navicon">＋</span>İşlem</button>
-<button class="navbtn" data-view="history" onclick="showView('history')"><span class="navicon">▣</span>Geçmiş</button>
-<button class="navbtn" data-view="settings" onclick="showView('settings')"><span class="navicon">⚙</span>Ayarlar</button>
-</nav></div>
-<script src="app.js?v=3.1"></script>
-</body></html>
+
+<div class="bottom">
+
+<nav>
+
+<button
+class="navbtn active"
+data-view="scan"
+onclick="showView('scan')">
+
+<span class="navicon">⌁</span>
+Tarama
+
+</button>
+
+
+<button
+class="navbtn"
+data-view="markets"
+onclick="showView('markets')">
+
+<span class="navicon">◉</span>
+Piyasalar
+
+</button>
+
+
+<button
+class="navbtn"
+data-view="trade"
+onclick="showView('trade')">
+
+<span class="navicon">＋</span>
+İşlem
+
+</button>
+
+
+<button
+class="navbtn"
+data-view="history"
+onclick="showView('history')">
+
+<span class="navicon">▣</span>
+Geçmiş
+
+</button>
+
+
+<button
+class="navbtn"
+data-view="settings"
+onclick="showView('settings')">
+
+<span class="navicon">⚙</span>
+Ayarlar
+
+</button>
+
+</nav>
+
+</div>
+
+
+<script src="app.js?v=4.0"></script>
+
+</body>
+</html>
