@@ -1524,36 +1524,41 @@ function connect(){
   };
 
 
-  ws.onmessage=e=>{
+ ws.onmessage=e=>{
 
-   try{
+  try{
 
     let a=
-     JSON.parse(e.data).data||[];
+      JSON.parse(e.data).data||[];
 
 
     a.forEach(x=>
-     tickers.set(x.s,x)
+      tickers.set(x.s,x)
     );
 
 
-    render();
+    /*
+      Canlı ticker güncellemesi geldiğinde
+      ana listeyi yeniden çizme.
+
+      Aksi halde açık olan işlem planları
+      her fiyat değişiminde kapanır.
+    */
 
 
     if(currentView==='markets')
-     renderMarkets();
+      renderMarkets();
 
 
     if(
-     Date.now()-lastScan>
-     90000
+      Date.now()-lastScan>90000
     )
-     scan();
+      scan();
 
 
-   }catch(_){}
+  }catch(_){}
 
-  };
+};
 
 
   ws.onclose=()=>{
