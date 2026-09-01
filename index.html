@@ -1,11 +1,10 @@
-
 <!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050b14">
-<title>Futures Signal Scanner v4</title>
+<title>Futures Signal Scanner v7</title>
 <link rel="manifest" href="manifest.webmanifest">
 
 <style>
@@ -48,9 +47,7 @@ color:#9db0c8;
 font-size:11px
 }
 
-.live{
-color:#55e39a
-}
+.live{color:#55e39a}
 
 .cards{
 display:grid;
@@ -65,9 +62,7 @@ border:1px solid #17263a;
 border-radius:16px
 }
 
-.stat{
-padding:11px
-}
+.stat{padding:11px}
 
 .stat b{
 display:block;
@@ -119,13 +114,8 @@ justify-content:space-between;
 gap:8px
 }
 
-.symbol{
-font-weight:850
-}
-
-.price{
-font-weight:750
-}
+.symbol{font-weight:850}
+.price{font-weight:750}
 
 .badge{
 font-size:11px;
@@ -185,13 +175,8 @@ padding:10px;
 font-weight:750
 }
 
-.primary{
-background:#163b31
-}
-
-.secondary{
-background:#251923
-}
+.primary{background:#163b31}
+.secondary{background:#251923}
 
 .detail{
 display:none;
@@ -199,9 +184,7 @@ padding:14px;
 margin-top:10px
 }
 
-.detail.open{
-display:block
-}
+.detail.open{display:block}
 
 .grid{
 display:grid;
@@ -245,9 +228,7 @@ font-size:17px;
 margin:0 0 10px
 }
 
-.hidden{
-display:none
-}
+.hidden{display:none}
 
 .marketrow{
 display:grid;
@@ -304,6 +285,27 @@ color:#6f8098;
 line-height:1.45
 }
 
+.positionStatus{
+padding:7px 10px;
+border-radius:20px;
+background:#173b2f;
+color:#55e39a;
+font-size:10px;
+display:inline-block;
+margin-bottom:10px
+}
+
+.closeBtn{
+margin-top:12px;
+width:100%;
+border:1px solid #63303a;
+background:#421b25;
+color:#ff8997;
+border-radius:10px;
+padding:12px;
+font-weight:850
+}
+
 .bottom{
 position:fixed;
 bottom:0;
@@ -330,9 +332,7 @@ font-size:10px;
 padding:5px 3px
 }
 
-.navbtn.active{
-color:#5de5a0
-}
+.navbtn.active{color:#5de5a0}
 
 .navicon{
 display:block;
@@ -341,13 +341,13 @@ margin-bottom:2px
 }
 
 @media(max-width:420px){
-.navbtn{
-font-size:9px
-}
+
+.navbtn{font-size:9px}
 
 .plan{
 grid-template-columns:repeat(2,1fr)
 }
+
 }
 </style>
 </head>
@@ -360,9 +360,11 @@ grid-template-columns:repeat(2,1fr)
 
 <div>
 <h1>TARAMA / FIRSATLAR</h1>
+
 <div class="sub">
-Binance Futures • Sinyal Motoru v4
+Binance Futures • Sinyal Motoru v7
 </div>
+
 </div>
 
 <div id="status" class="status">
@@ -396,19 +398,15 @@ BAĞLANIYOR
 
 <div class="tabs">
 
-<button id="all"
-class="on"
-onclick="setFilter('all')">
+<button id="all" class="on" onclick="setFilter('all')">
 Tümü
 </button>
 
-<button id="longTab"
-onclick="setFilter('long')">
+<button id="longTab" onclick="setFilter('long')">
 LONG
 </button>
 
-<button id="shortTab"
-onclick="setFilter('short')">
+<button id="shortTab" onclick="setFilter('short')">
 SHORT
 </button>
 
@@ -450,7 +448,14 @@ Canlı USDT-M Futures • yüksek hacimli pariteler
 
 <section id="tradeView" class="hidden">
 
-  <div id="openPosition"></div>
+<div id="openPosition">
+
+<div class="empty">
+Açık paper pozisyon bulunmuyor.
+</div>
+
+</div>
+
 
 <div class="panel">
 
@@ -516,10 +521,7 @@ Kaldıraç
 <label>
 Giriş
 
-<input
-id="tradeEntry"
-type="number"
-step="any">
+<input id="tradeEntry" type="number" step="any">
 
 </label>
 
@@ -531,11 +533,7 @@ step="any">
 <label>
 Sermaye (USDT)
 
-<input
-id="tradeCapital"
-type="number"
-value="100"
-min="1">
+<input id="tradeCapital" type="number" value="100" min="1">
 
 </label>
 
@@ -551,10 +549,7 @@ min="1">
 <label>
 Stop Loss
 
-<input
-id="tradeSL"
-type="number"
-step="any">
+<input id="tradeSL" type="number" step="any">
 
 </label>
 
@@ -566,10 +561,7 @@ step="any">
 <label>
 TP1
 
-<input
-id="tradeTP1"
-type="number"
-step="any">
+<input id="tradeTP1" type="number" step="any">
 
 </label>
 
@@ -578,12 +570,8 @@ step="any">
 </div>
 
 
-<button
-class="primary"
-onclick="savePaperTrade()">
-
+<button class="primary" onclick="savePaperTrade()">
 Paper işlemi kaydet
-
 </button>
 
 
@@ -619,48 +607,28 @@ Bu cihazda tutulan paper işlemleri.
 
 
 <label>
-
 Minimum güçlü sinyal skoru
 
-<input
-id="minScore"
-type="number"
-min="50"
-max="95"
-value="65">
+<input id="minScore" type="number" min="50" max="95" value="65">
 
 </label>
 
 
 <label>
-
 Tarama aralığı (saniye)
 
-<input
-id="scanSeconds"
-type="number"
-min="30"
-max="600"
-value="90">
+<input id="scanSeconds" type="number" min="30" max="600" value="90">
 
 </label>
 
 
-<button
-class="primary"
-onclick="saveSettings()">
-
+<button class="primary" onclick="saveSettings()">
 Ayarları kaydet
-
 </button>
 
 
-<button
-class="secondary"
-onclick="clearHistory()">
-
+<button class="secondary" onclick="clearHistory()">
 Paper geçmişini temizle
-
 </button>
 
 
@@ -682,58 +650,33 @@ Gerçek işlem kararı vermeden önce backtest ve paper trading yapılmalıdır.
 
 <nav>
 
-<button
-class="navbtn active"
-data-view="scan"
-onclick="showView('scan')">
-
+<button class="navbtn active" data-view="scan" onclick="showView('scan')">
 <span class="navicon">⌁</span>
 Tarama
-
 </button>
 
 
-<button
-class="navbtn"
-data-view="markets"
-onclick="showView('markets')">
-
+<button class="navbtn" data-view="markets" onclick="showView('markets')">
 <span class="navicon">◉</span>
 Piyasalar
-
 </button>
 
 
-<button
-class="navbtn"
-data-view="trade"
-onclick="showView('trade')">
-
+<button class="navbtn" data-view="trade" onclick="showView('trade')">
 <span class="navicon">＋</span>
 İşlem
-
 </button>
 
 
-<button
-class="navbtn"
-data-view="history"
-onclick="showView('history')">
-
+<button class="navbtn" data-view="history" onclick="showView('history')">
 <span class="navicon">▣</span>
 Geçmiş
-
 </button>
 
 
-<button
-class="navbtn"
-data-view="settings"
-onclick="showView('settings')">
-
+<button class="navbtn" data-view="settings" onclick="showView('settings')">
 <span class="navicon">⚙</span>
 Ayarlar
-
 </button>
 
 </nav>
@@ -741,7 +684,7 @@ Ayarlar
 </div>
 
 
-<script src="app.js?v=4.0"></script>
+<script src="app.js?v=7.0"></script>
 
 </body>
 </html>
