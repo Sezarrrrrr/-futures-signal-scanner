@@ -42,6 +42,81 @@ const compact=v=>{
 
 
 /* =========================
+   STORAGE
+========================= */
+
+function readHistory(){
+
+    try{
+
+        const data=
+            JSON.parse(
+                localStorage.getItem('paperHistory')||'[]'
+            );
+
+        return Array.isArray(data)?data:[];
+
+    }catch(_){
+
+        return [];
+    }
+}
+
+
+function writeHistory(history){
+
+    localStorage.setItem(
+        'paperHistory',
+        JSON.stringify(
+            Array.isArray(history)
+                ?history.slice(0,100)
+                :[]
+        )
+    );
+}
+
+
+function getOpenPosition(){
+
+    try{
+
+        const p=
+            JSON.parse(
+                localStorage.getItem(
+                    'openPaperPosition'
+                )||'null'
+            );
+
+        if(!p||typeof p!=='object')
+            return null;
+
+        return p;
+
+    }catch(_){
+
+        return null;
+    }
+}
+
+
+function saveOpenPosition(position){
+
+    localStorage.setItem(
+        'openPaperPosition',
+        JSON.stringify(position)
+    );
+}
+
+
+function clearOpenPosition(){
+
+    localStorage.removeItem(
+        'openPaperPosition'
+    );
+}
+
+
+/* =========================
    API
 ========================= */
 
@@ -53,11 +128,13 @@ async function api(path,p={}){
         u.searchParams.set(k,v);
     });
 
-    const r=await fetch(u,{cache:'no-store'});
+    const r=await fetch(
+        u,
+        {cache:'no-store'}
+    );
 
-    if(!r.ok){
+    if(!r.ok)
         throw Error(r.status+' '+path);
-    }
 
     return r.json();
 }
@@ -73,8 +150,8 @@ function ema(a,p){
 
     const k=2/(p+1);
 
-    let e=a
-        .slice(0,p)
+    let e=
+        a.slice(0,p)
         .reduce((x,y)=>x+y,0)/p;
 
     for(let i=p;i<a.length;i++){
@@ -200,8 +277,8 @@ function trend(c){
 
 function vr(c){
 
-    const a=c
-        .slice(-21,-1)
+    const a=
+        c.slice(-21,-1)
         .map(x=>x.v);
 
     const avg=
@@ -357,13 +434,11 @@ async function analyze(symbol,t){
         n(t?.c)||
         a5.at(-1);
 
-
     const e1=ema(a1,20);
     const e150=ema(a1,50);
 
     let longPts=0;
     let shortPts=0;
-
 
     if(t1.s>0)longPts+=20;
     else shortPts+=20;
@@ -374,36 +449,30 @@ async function analyze(symbol,t){
     if(t5.s>0)longPts+=10;
     else shortPts+=10;
 
-
     if(r1v>=52&&r1v<=70)
         longPts+=10;
     else if(r1v>=30&&r1v<=48)
         shortPts+=10;
-
 
     if(r15v>=52&&r15v<=72)
         longPts+=7;
     else if(r15v>=28&&r15v<=48)
         shortPts+=7;
 
-
     if(m1.h>0)
         longPts+=8;
     else if(m1.h<0)
         shortPts+=8;
-
 
     if(m15.h>0)
         longPts+=7;
     else if(m15.h<0)
         shortPts+=7;
 
-
     if(price>e1&&e1>e150)
         longPts+=8;
     else if(price<e1&&e1<e150)
         shortPts+=8;
-
 
     if(volume>=1.25){
 
@@ -414,18 +483,15 @@ async function analyze(symbol,t){
             shortPts+=7;
     }
 
-
     if(fund>.0005)
         shortPts+=4;
     else if(fund<-.0005)
         longPts+=4;
 
-
     if(lsr>1.25)
         shortPts+=4;
     else if(lsr&&lsr<.8)
         longPts+=4;
-
 
     const cb=candleBias(c5);
 
@@ -434,16 +500,13 @@ async function analyze(symbol,t){
     else if(cb<0)
         shortPts+=4;
 
-
     const score=clamp(
         Math.round(
             50+(longPts-shortPts)*.5
         )
     );
 
-
     const s=side(score);
-
 
     const alignedLong=
         t1.s>0&&
@@ -452,14 +515,12 @@ async function analyze(symbol,t){
         cb>=0&&
         m5.h>=0;
 
-
     const alignedShort=
         t1.s<0&&
         t15.s<0&&
         t5.s<0&&
         cb<=0&&
         m5.h<=0;
-
 
     const confirmation=
         s==='LONG'&&alignedLong
@@ -470,15 +531,12 @@ async function analyze(symbol,t){
             ?'İZLE'
             :'TEYİT BEKLENİYOR';
 
-
     const risk=Math.max(
         A*1.5,
         price*.004
     );
 
-
     let sl,tp1,tp2,tp3;
-
 
     if(s==='SHORT'){
 
@@ -495,12 +553,10 @@ async function analyze(symbol,t){
         tp3=price+risk*3;
     }
 
-
     const atrPct=
         price
             ?A/price*100
             :0;
-
 
     const lev=
         atrPct>3
@@ -508,7 +564,6 @@ async function analyze(symbol,t){
             :atrPct>1.5
             ?3
             :5;
-
 
     const rr1=
         Math.abs(tp1-price)/
@@ -521,7 +576,6 @@ async function analyze(symbol,t){
     const rr3=
         Math.abs(tp3-price)/
         Math.max(Math.abs(price-sl),1e-12);
-
 
     return{
 
@@ -574,7 +628,32 @@ async function analyze(symbol,t){
 
 
 /* =========================
-   SİNYAL LİSTESİ
+   FİLTRE
+========================= */
+
+function setFilter(value){
+
+    filter=value;
+
+    document
+        .querySelectorAll('.tabs button')
+        .forEach(b=>b.classList.remove('on'));
+
+    const id=
+        value==='all'
+            ?'all'
+            :value==='long'
+            ?'longTab'
+            :'shortTab';
+
+    $(id)?.classList.add('on');
+
+    render();
+}
+
+
+/* =========================
+   SİNYAL RENDER
 ========================= */
 
 function render(){
@@ -583,14 +662,12 @@ function render(){
 
     if(!list)return;
 
-
     let rows=signals.filter(
         x=>
             filter==='all'||
             (filter==='long'&&x.side==='LONG')||
             (filter==='short'&&x.side==='SHORT')
     );
-
 
     if($('long')){
 
@@ -600,7 +677,6 @@ function render(){
             ).length;
     }
 
-
     if($('short')){
 
         $('short').textContent=
@@ -609,17 +685,13 @@ function render(){
             ).length;
     }
 
-
-    if($('count')){
+    if($('count'))
         $('count').textContent=tickers.size;
-    }
-
 
     const min=
         Number(
             localStorage.getItem('minScore')||65
         );
-
 
     rows=rows.filter(
         x=>
@@ -628,7 +700,6 @@ function render(){
             100-x.score>=min
     );
 
-
     if(!rows.length){
 
         list.innerHTML=
@@ -636,7 +707,6 @@ function render(){
 
         return;
     }
-
 
     list.innerHTML=
         rows.slice(0,12).map(x=>{
@@ -648,14 +718,12 @@ function render(){
                     ?'sb'
                     :'watch';
 
-
             const bar=
                 x.side==='LONG'
                     ?x.score
                     :x.side==='SHORT'
                     ?100-x.score
                     :50;
-
 
             return`
 
@@ -677,7 +745,6 @@ Hacim $${compact(x.quote)}
 
 </div>
 
-
 <div style="text-align:right">
 
 <div class="price">
@@ -690,13 +757,11 @@ ${x.change>=0?'+':''}${x.change.toFixed(2)}%
 
 </div>
 
-
 <span class="badge ${cls}">
 ${x.side} • ${x.score}/100
 </span>
 
 </div>
-
 
 <div class="bar">
 
@@ -713,19 +778,14 @@ background:${
 
 </div>
 
-
 <div class="meta">
 
 <span>RSI 1H ${x.rsi1.toFixed(0)}</span>
-
 <span>RSI 15M ${x.rsi15.toFixed(0)}</span>
-
 <span>Hacim x${x.vr.toFixed(1)}</span>
-
 <span>Funding ${(x.funding*100).toFixed(3)}%</span>
 
 </div>
-
 
 <button
 class="action"
@@ -735,11 +795,7 @@ onclick="toggleDetail('${x.symbol}')">
 
 </button>
 
-
-<div
-id="d-${x.symbol}"
-class="detail">
-
+<div id="d-${x.symbol}" class="detail">
 
 <div class="muted">
 
@@ -751,7 +807,6 @@ Teknik Güç ${x.score}/100 •
 ${x.lev}x
 
 </div>
-
 
 <div class="plan">
 
@@ -777,7 +832,6 @@ ${x.lev}x
 
 </div>
 
-
 <div class="grid">
 
 <div class="box">
@@ -801,7 +855,6 @@ ${x.lev}x
 </div>
 
 </div>
-
 
 <div class="grid">
 
@@ -827,19 +880,17 @@ ${x.lev}x
 
 </div>
 
-
 <div class="meta">
 
 <span>5M ${x.trend5>0?'↑':'↓'}</span>
-
 <span>15M ${x.trend15>0?'↑':'↓'}</span>
-
 <span>1H ${x.trend1>0?'↑':'↓'}</span>
 
-<span>${new Date(x.updated).toLocaleTimeString('tr-TR')}</span>
+<span>
+${new Date(x.updated).toLocaleTimeString('tr-TR')}
+</span>
 
 </div>
-
 
 <button
 class="action"
@@ -849,7 +900,6 @@ Bu sinyalle İşlem'e git
 
 </button>
 
-
 </div>
 
 </article>
@@ -858,18 +908,15 @@ Bu sinyalle İşlem'e git
 
         }).join('');
 
-
-    /* Açık detayın yeniden çizim sonrası korunması */
-
     if(openDetailSymbol){
 
-        const d=document.getElementById(
-            'd-'+openDetailSymbol
-        );
+        const d=
+            document.getElementById(
+                'd-'+openDetailSymbol
+            );
 
-        if(d){
+        if(d)
             d.classList.add('open');
-        }
     }
 }
 
@@ -881,17 +928,14 @@ function toggleDetail(symbol){
 
     if(!el)return;
 
-
     const wasOpen=
         el.classList.contains('open');
-
 
     document
         .querySelectorAll('.detail.open')
         .forEach(x=>{
             x.classList.remove('open');
         });
-
 
     if(wasOpen){
 
@@ -900,20 +944,18 @@ function toggleDetail(symbol){
     }else{
 
         el.classList.add('open');
-
         openDetailSymbol=symbol;
     }
 }
 
 
 /* =========================
-   ALT MENÜ
+   VIEW
 ========================= */
 
 function showView(v){
 
     currentView=v;
-
 
     [
         'scan',
@@ -934,7 +976,6 @@ function showView(v){
         }
     });
 
-
     document
         .querySelectorAll('.navbtn')
         .forEach(b=>{
@@ -945,18 +986,16 @@ function showView(v){
             );
         });
 
-
     if(v==='markets')
         renderMarkets();
 
-
-    if(v==='trade')
+    if(v==='trade'){
         populateTrade();
-
+        renderOpenPosition();
+    }
 
     if(v==='history')
         renderHistory();
-
 
     if(v==='settings'){
 
@@ -972,7 +1011,7 @@ function showView(v){
 
 
 /* =========================
-   PİYASALAR
+   MARKETS
 ========================= */
 
 function renderMarkets(){
@@ -980,7 +1019,6 @@ function renderMarkets(){
     const el=$('marketList');
 
     if(!el)return;
-
 
     const a=
         [...tickers.values()]
@@ -993,7 +1031,6 @@ function renderMarkets(){
                 (a,b)=>n(b.q)-n(a.q)
             )
             .slice(0,30);
-
 
     el.innerHTML=
         a.length
@@ -1018,58 +1055,38 @@ ${n(x.P)>=0?'+':''}${n(x.P).toFixed(2)}%
 
 
 /* =========================
-   PAPER İŞLEM
+   TRADE
 ========================= */
 
-function getOpenPosition(){
-
-    try{
-
-        const p=
-            JSON.parse(
-                localStorage.getItem(
-                    'openPaperPosition'
-                )||'null'
-            );
-
-        return p;
-
-    }catch(_){
-
-        return null;
-    }
-}
-
-
-function saveOpenPosition(p){
-
-    localStorage.setItem(
-        'openPaperPosition',
-        JSON.stringify(p)
-    );
-}
-
-
-function clearOpenPosition(){
-
-    localStorage.removeItem(
-        'openPaperPosition'
-    );
-}
-
-
 function populateTrade(){
+
+    const select=$('tradeCoin');
+
+    if(!select)return;
+
+    const open=getOpenPosition();
 
     const list=
         signals.filter(
             x=>x.side!=='NÖTR'
         );
 
+    if(open){
 
-    const select=$('tradeCoin');
+        select.innerHTML=`
+<option value="${open.symbol}">
+${open.symbol} • ${open.side} • AÇIK
+</option>
+`;
 
-    if(!select)return;
+        select.value=open.symbol;
 
+        applyTradeFromSelection();
+
+        renderOpenPosition();
+
+        return;
+    }
 
     select.innerHTML=
         list.length
@@ -1083,23 +1100,6 @@ ${x.symbol} • ${x.side} ${x.score}/100
 
             :'<option value="">Henüz sinyal yok</option>';
 
-
-    const open=getOpenPosition();
-
-
-    if(open){
-
-        if(
-            list.some(
-                x=>x.symbol===open.symbol
-            )
-        ){
-
-            select.value=open.symbol;
-        }
-    }
-
-
     applyTradeFromSelection();
 
     renderOpenPosition();
@@ -1112,15 +1112,39 @@ function applyTradeFromSelection(){
 
     if(!select)return;
 
+    const open=getOpenPosition();
+
+    if(open){
+
+        if($('tradeSide'))
+            $('tradeSide').value=open.side;
+
+        if($('tradeLev'))
+            $('tradeLev').value=open.lev;
+
+        if($('tradeEntry'))
+            $('tradeEntry').value=open.entry;
+
+        if($('tradeSL'))
+            $('tradeSL').value=open.sl;
+
+        if($('tradeTP1'))
+            $('tradeTP1').value=open.tp1;
+
+        if($('tradeCapital'))
+            $('tradeCapital').value=open.capital;
+
+        calcTrade();
+
+        return;
+    }
 
     const x=
         signals.find(
             s=>s.symbol===select.value
         );
 
-
     if(!x)return;
-
 
     if($('tradeSide'))
         $('tradeSide').value=x.side;
@@ -1137,7 +1161,6 @@ function applyTradeFromSelection(){
     if($('tradeTP1'))
         $('tradeTP1').value=x.tp1;
 
-
     calcTrade();
 }
 
@@ -1146,14 +1169,10 @@ function prepareTrade(symbol){
 
     showView('trade');
 
-
     const select=$('tradeCoin');
 
-    if(select){
-
+    if(select)
         select.value=symbol;
-    }
-
 
     applyTradeFromSelection();
 }
@@ -1167,7 +1186,6 @@ function calcTrade(){
     const tp=n($('tradeTP1')?.value);
     const lev=n($('tradeLev')?.value);
 
-
     if(!cap||!entry||!sl||!tp){
 
         if($('calcResult'))
@@ -1176,19 +1194,18 @@ function calcTrade(){
         return;
     }
 
-
     const riskPct=
         Math.abs(entry-sl)/
         entry*100;
 
-
     const rr=
         Math.abs(tp-entry)/
-        Math.max(Math.abs(entry-sl),1e-12);
-
+        Math.max(
+            Math.abs(entry-sl),
+            1e-12
+        );
 
     const notional=cap*lev;
-
 
     if($('calcResult')){
 
@@ -1223,19 +1240,12 @@ Pozisyon notional:
 function savePaperTrade(){
 
     const symbol=$('tradeCoin')?.value;
-
     const side=$('tradeSide')?.value;
-
     const entry=n($('tradeEntry')?.value);
-
     const sl=n($('tradeSL')?.value);
-
     const tp1=n($('tradeTP1')?.value);
-
     const lev=n($('tradeLev')?.value);
-
     const capital=n($('tradeCapital')?.value);
-
 
     if(
         !symbol||
@@ -1252,29 +1262,27 @@ function savePaperTrade(){
         return;
     }
 
-
     if(getOpenPosition()){
 
         alert(
             'Zaten açık bir paper pozisyon var. Önce mevcut pozisyonu kapat.'
         );
 
+        renderOpenPosition();
+
         return;
     }
-
 
     const ticker=tickers.get(symbol);
 
     const currentPrice=
         n(ticker?.c)||entry;
 
-
     const position={
 
         id:Date.now(),
 
         symbol,
-
         side,
 
         entry,
@@ -1282,11 +1290,9 @@ function savePaperTrade(){
         currentPrice,
 
         sl,
-
         tp1,
 
         lev,
-
         capital,
 
         notional:capital*lev,
@@ -1296,28 +1302,23 @@ function savePaperTrade(){
         status:'Açık',
 
         maxPnl:0,
-
         minPnl:0
     };
 
-
     saveOpenPosition(position);
-
 
     renderOpenPosition();
 
-
     renderHistory();
 
-
     alert(
-        'Paper pozisyon açıldı. Gerçek emir gönderilmedi.'
+        'Paper pozisyon açıldı.\nGerçek emir gönderilmedi.'
     );
 }
 
 
 /* =========================
-   CANLI PNL HESABI
+   PNL
 ========================= */
 
 function calculatePnl(position,currentPrice){
@@ -1327,17 +1328,16 @@ function calculatePnl(position,currentPrice){
     const capital=n(position.capital);
     const lev=n(position.lev);
 
+    if(!entry||!price){
 
-    if(!entry||!price)
         return{
             pnl:0,
             pnlPct:0,
             leveragedPct:0
         };
-
+    }
 
     let move;
-
 
     if(position.side==='LONG'){
 
@@ -1350,18 +1350,14 @@ function calculatePnl(position,currentPrice){
             (entry-price)/entry;
     }
 
-
     const pnl=
         capital*lev*move;
-
 
     const pnlPct=
         move*100;
 
-
     const leveragedPct=
         pnl/capital*100;
-
 
     return{
         pnl,
@@ -1372,7 +1368,7 @@ function calculatePnl(position,currentPrice){
 
 
 /* =========================
-   AÇIK POZİSYON GÖRÜNÜMÜ
+   AÇIK POZİSYON
 ========================= */
 
 function renderOpenPosition(){
@@ -1381,17 +1377,17 @@ function renderOpenPosition(){
 
     if(!container)return;
 
-
     const position=getOpenPosition();
-
 
     if(!position){
 
         container.innerHTML=`
 
-<div class="empty">
+<div class="panel">
 
+<div class="empty">
 Açık paper pozisyon bulunmuyor.
+</div>
 
 </div>
 
@@ -1400,19 +1396,15 @@ Açık paper pozisyon bulunmuyor.
         return;
     }
 
-
     const ticker=
         tickers.get(position.symbol);
-
 
     const currentPrice=
         n(ticker?.c)||
         n(position.currentPrice)||
-        position.entry;
-
+        n(position.entry);
 
     position.currentPrice=currentPrice;
-
 
     const result=
         calculatePnl(
@@ -1420,13 +1412,11 @@ Açık paper pozisyon bulunmuyor.
             currentPrice
         );
 
-
     position.maxPnl=
         Math.max(
             n(position.maxPnl),
             result.pnl
         );
-
 
     position.minPnl=
         Math.min(
@@ -1434,21 +1424,22 @@ Açık paper pozisyon bulunmuyor.
             result.pnl
         );
 
-
     saveOpenPosition(position);
-
 
     const pnlClass=
         result.pnl>=0
             ?'green'
             :'red';
 
-
     container.innerHTML=`
 
 <div class="panel">
 
-<h2>📈 Açık Pozisyon</h2>
+<div class="positionStatus">
+● POZİSYON AÇIK
+</div>
+
+<h2>📈 ${position.symbol} ${position.side}</h2>
 
 <div class="muted">
 Paper Trading • Gerçek emir gönderilmedi
@@ -1461,9 +1452,7 @@ Paper Trading • Gerçek emir gönderilmedi
 
 <span>COIN</span>
 
-<b>
-${position.symbol}
-</b>
+<b>${position.symbol}</b>
 
 </div>
 
@@ -1487,9 +1476,7 @@ ${position.side}
 
 <span>GİRİŞ</span>
 
-<b>
-${fmt(position.entry)}
-</b>
+<b>${fmt(position.entry)}</b>
 
 </div>
 
@@ -1498,9 +1485,7 @@ ${fmt(position.entry)}
 
 <span>ANLIK FİYAT</span>
 
-<b>
-${fmt(currentPrice)}
-</b>
+<b>${fmt(currentPrice)}</b>
 
 </div>
 
@@ -1509,9 +1494,7 @@ ${fmt(currentPrice)}
 
 <span>SERMAYE</span>
 
-<b>
-${fmt(position.capital)} USDT
-</b>
+<b>${fmt(position.capital)} USDT</b>
 
 </div>
 
@@ -1520,9 +1503,7 @@ ${fmt(position.capital)} USDT
 
 <span>NOTIONAL</span>
 
-<b>
-${fmt(position.notional)} USDT
-</b>
+<b>${fmt(position.notional)} USDT</b>
 
 </div>
 
@@ -1531,9 +1512,7 @@ ${fmt(position.notional)} USDT
 
 <span>KALDIRAÇ</span>
 
-<b>
-${position.lev}x
-</b>
+<b>${position.lev}x</b>
 
 </div>
 
@@ -1616,10 +1595,10 @@ ${result.pnl>=0?'+':''}${fmt(position.maxPnl)} USDT
 
 
 <button
-class="secondary"
+class="closeBtn"
 onclick="closePaperPosition()">
 
-Pozisyonu Kapat
+⛔ POZİSYONU KAPAT
 
 </button>
 
@@ -1643,19 +1622,19 @@ function closePaperPosition(){
             'Açık pozisyon bulunmuyor.'
         );
 
+        renderOpenPosition();
+        renderHistory();
+
         return;
     }
-
 
     const ticker=
         tickers.get(position.symbol);
 
-
     const exitPrice=
         n(ticker?.c)||
         n(position.currentPrice)||
-        position.entry;
-
+        n(position.entry);
 
     const result=
         calculatePnl(
@@ -1663,84 +1642,77 @@ function closePaperPosition(){
             exitPrice
         );
 
-
     const record={
 
         id:position.id,
 
         symbol:position.symbol,
-
         side:position.side,
 
-        entry:position.entry,
-
+        entry:n(position.entry),
         exit:exitPrice,
 
-        sl:position.sl,
+        sl:n(position.sl),
+        tp1:n(position.tp1),
 
-        tp1:position.tp1,
-
-        lev:position.lev,
-
-        capital:position.capital,
-
-        notional:position.notional,
+        lev:n(position.lev),
+        capital:n(position.capital),
+        notional:n(position.notional),
 
         pnl:result.pnl,
-
         pnlPct:result.pnlPct,
-
         leveragedPct:result.leveragedPct,
 
         openedAt:position.openedAt,
-
         closedAt:new Date().toISOString(),
 
         status:'Kapalı'
     };
 
 
-    let history=[];
+    /*
+       Önce geçmişe yaz.
+       Ancak başarılı olduktan sonra
+       açık pozisyonu siliyoruz.
+    */
 
+    const history=readHistory();
 
-    try{
+    const exists=
+        history.some(
+            x=>String(x.id)===String(record.id)
+        );
 
-        history=
-            JSON.parse(
-                localStorage.getItem(
-                    'paperHistory'
-                )||'[]'
-            );
+    if(!exists){
 
-    }catch(_){
+        history.unshift(record);
 
-        history=[];
+        writeHistory(history);
     }
 
 
-    history.unshift(record);
-
-
-    localStorage.setItem(
-        'paperHistory',
-        JSON.stringify(
-            history.slice(0,100)
-        )
-    );
-
+    /*
+       Artık pozisyon kapalı.
+    */
 
     clearOpenPosition();
 
+
+    /*
+       Ekranları anında yenile.
+    */
 
     renderOpenPosition();
 
     renderHistory();
 
+    populateTrade();
+
 
     alert(
-        `Paper pozisyon kapatıldı.\n\nPNL: ${
-            result.pnl>=0?'+':''
-        }${fmt(result.pnl)} USDT`
+        `Paper pozisyon kapatıldı.\n\n`+
+        `Çıkış: ${fmt(exitPrice)}\n`+
+        `PNL: ${result.pnl>=0?'+':''}${fmt(result.pnl)} USDT`
     );
 }
 
@@ -1755,94 +1727,40 @@ function renderHistory(){
 
     if(!el)return;
 
+    const history=readHistory();
 
-    let history=[];
+    /*
+       Geçmiş sadece KAPALI işlemleri gösterir.
+       Açık pozisyon burada gösterilmez.
+    */
 
-
-    try{
-
-        history=
-            JSON.parse(
-                localStorage.getItem(
-                    'paperHistory'
-                )||'[]'
-            );
-
-    }catch(_){
-
-        history=[];
-    }
+    const closed=
+        history.filter(
+            x=>x&&x.status==='Kapalı'
+        );
 
 
-    const open=getOpenPosition();
+    if(!closed.length){
 
+        el.innerHTML=`
 
-    let html='';
-
-
-    if(open){
-
-        const ticker=
-            tickers.get(open.symbol);
-
-
-        const price=
-            n(ticker?.c)||
-            open.currentPrice||
-            open.entry;
-
-
-        const result=
-            calculatePnl(
-                open,
-                price
-            );
-
-
-        html+=`
-
-<div class="history">
-
-<b class="yellow">
-🟡 ${open.symbol} ${open.side} • AÇIK
-</b>
-
-<div class="muted">
-
-Giriş ${fmt(open.entry)}
-•
-Anlık ${fmt(price)}
-•
-${open.lev}x
-
-</div>
-
-<div class="${
-    result.pnl>=0
-        ?'green'
-        :'red'
-}">
-
-PNL:
-${result.pnl>=0?'+':''}${fmt(result.pnl)}
-USDT
-
-</div>
-
+<div class="empty">
+Henüz kapatılmış paper işlem yok.
 </div>
 
 `;
+
+        return;
     }
 
 
-    if(history.length){
-
-        html+=history.map(x=>`
+    el.innerHTML=
+        closed.map(x=>`
 
 <div class="history">
 
 <b class="${
-    x.pnl>=0
+    n(x.pnl)>=0
         ?'green'
         :'red'
 }">
@@ -1850,61 +1768,73 @@ USDT
 ${x.symbol}
 ${x.side}
 •
-${x.status}
+KAPALI
 
 </b>
 
 
 <div class="muted">
 
-Giriş ${fmt(x.entry)}
+Giriş:
+${fmt(x.entry)}
+
 •
-Çıkış ${fmt(x.exit)}
+
+Çıkış:
+${fmt(x.exit)}
+
 •
+
 ${x.lev}x
 
 </div>
 
 
-<div class="muted">
-
-PNL:
-<span class="${
-    x.pnl>=0
+<div class="${
+    n(x.pnl)>=0
         ?'green'
         :'red'
 }">
-${x.pnl>=0?'+':''}${fmt(x.pnl)}
-USDT
-</span>
 
-•
-${x.leveragedPct>=0?'+':''}${x.leveragedPct.toFixed(2)}%
+PNL:
+${n(x.pnl)>=0?'+':''}${fmt(x.pnl)}
+USDT
 
 </div>
 
 
 <div class="muted">
 
-${new Date(x.openedAt)
-    .toLocaleString('tr-TR')}
+Fiyat değişimi:
+${n(x.pnlPct)>=0?'+':''}${n(x.pnlPct).toFixed(2)}%
 
-→
+•
 
-${new Date(x.closedAt)
-    .toLocaleString('tr-TR')}
+Kaldıraçlı:
+${n(x.leveragedPct)>=0?'+':''}${n(x.leveragedPct).toFixed(2)}%
+
+</div>
+
+
+<div class="muted">
+
+Açılış:
+${x.openedAt
+    ?new Date(x.openedAt).toLocaleString('tr-TR')
+    :'—'}
+
+<br>
+
+Kapanış:
+${x.closedAt
+    ?new Date(x.closedAt).toLocaleString('tr-TR')
+    :'—'}
 
 </div>
 
 </div>
 
 `).join('');
-    }
-
-
-    el.innerHTML=
-        html||
-        '<div class="empty">Henüz paper işlem yok.</div>';
 }
 
 
@@ -1922,7 +1852,6 @@ function saveSettings(){
         )
     );
 
-
     const s=Math.min(
         600,
         Math.max(
@@ -1931,22 +1860,18 @@ function saveSettings(){
         )
     );
 
-
     localStorage.setItem(
         'minScore',
         m
     );
-
 
     localStorage.setItem(
         'scanSeconds',
         s
     );
 
-
     if(scanTimer)
         clearInterval(scanTimer);
-
 
     scanTimer=
         setInterval(
@@ -1954,9 +1879,7 @@ function saveSettings(){
             s*1000
         );
 
-
     render();
-
 
     alert(
         'Ayarlar kaydedildi.'
@@ -1968,7 +1891,7 @@ function clearHistory(){
 
     if(
         confirm(
-            'Paper işlem geçmişi silinsin mi?'
+            'Kapalı paper işlem geçmişi silinsin mi?'
         )
     ){
 
@@ -1992,14 +1915,11 @@ async function scan(){
         !tickers.size
     )return;
 
-
     busy=true;
-
 
     if($('refresh'))
         $('refresh').textContent=
-            'V6 teknik motoru hesaplıyor…';
-
+            'V7 teknik motoru hesaplıyor…';
 
     try{
 
@@ -2016,9 +1936,7 @@ async function scan(){
                 )
                 .slice(0,8);
 
-
         const out=[];
-
 
         for(
             let i=0;
@@ -2037,17 +1955,14 @@ async function scan(){
                         )
                 );
 
-
             out.push(
                 ...r.filter(Boolean)
             );
-
 
             await new Promise(
                 r=>setTimeout(r,250)
             );
         }
-
 
         signals=
             out.sort(
@@ -2056,32 +1971,25 @@ async function scan(){
                     Math.abs(a.score-50)
             );
 
-
         lastScan=Date.now();
 
-
         render();
-
 
         if(currentView==='markets')
             renderMarkets();
 
-
         if(currentView==='trade')
             populateTrade();
 
-
         if(currentView==='history')
             renderHistory();
-
 
         if($('refresh'))
             $('refresh').textContent=
                 'Son tarama '+
                 new Date(lastScan)
                     .toLocaleTimeString('tr-TR')+
-                ' • V6 • 8 yüksek hacimli coin';
-
+                ' • V7 • 8 yüksek hacimli coin';
 
     }catch(e){
 
@@ -2106,7 +2014,6 @@ function connect(){
 
         ws=new WebSocket(WS);
 
-
         ws.onopen=()=>{
 
             if($('status')){
@@ -2127,18 +2034,9 @@ function connect(){
                 const a=
                     JSON.parse(e.data).data||[];
 
-
                 a.forEach(x=>{
                     tickers.set(x.s,x);
                 });
-
-
-                /*
-                 Ana tarama listesini her tick'te
-                 yeniden çizme.
-
-                 Böylece işlem planı açık kalır.
-                */
 
 
                 if(currentView==='markets')
@@ -2146,9 +2044,8 @@ function connect(){
 
 
                 /*
-                 Açık paper pozisyon varsa
-                 sadece pozisyon görünümünü
-                 canlı fiyatla güncelle.
+                   Açık pozisyon varsa
+                   canlı PNL güncellenir.
                 */
 
                 if(getOpenPosition()){
@@ -2176,7 +2073,6 @@ function connect(){
                 $('status').textContent=
                     'YENİDEN BAĞLANIYOR';
 
-
             setTimeout(
                 connect,
                 2000
@@ -2185,7 +2081,6 @@ function connect(){
 
 
         ws.onerror=()=>ws.close();
-
 
     }catch(_){
 
@@ -2237,6 +2132,10 @@ if($('tradeCoin')){
 
 render();
 
+renderHistory();
+
+renderOpenPosition();
+
 connect();
 
 scan();
@@ -2255,26 +2154,21 @@ scanTimer=
     );
 
 
-/*
- PNL görünümünü ayrıca periyodik
- olarak yenile.
-
- Binance websocket zaten fiyat
- güncelliyor fakat bu timer,
- telefon tarayıcısının websocket
- davranışındaki gecikmelere karşı
- ek güvenlik sağlar.
-*/
-
 positionTimer=
     setInterval(
         ()=>{
-            if(getOpenPosition()){
+
+            const open=
+                getOpenPosition();
+
+            if(open){
+
                 renderOpenPosition();
 
                 if(currentView==='history')
                     renderHistory();
             }
+
         },
         1000
     );
