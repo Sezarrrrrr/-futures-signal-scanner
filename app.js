@@ -1618,23 +1618,27 @@ function closePaperPosition(){
 
     if(!position){
 
-        alert(
-            'Açık pozisyon bulunmuyor.'
-        );
-
-        renderOpenPosition();
-        renderHistory();
+        alert('Açık pozisyon bulunmuyor.');
 
         return;
     }
 
-    const ticker=
-        tickers.get(position.symbol);
+
+    const ticker=tickers.get(position.symbol);
 
     const exitPrice=
         n(ticker?.c)||
         n(position.currentPrice)||
         n(position.entry);
+
+
+    if(!exitPrice){
+
+        alert('Kapanış fiyatı alınamadı.');
+
+        return;
+    }
+
 
     const result=
         calculatePnl(
@@ -1642,77 +1646,157 @@ function closePaperPosition(){
             exitPrice
         );
 
+
     const record={
 
         id:position.id,
 
         symbol:position.symbol,
+
         side:position.side,
 
         entry:n(position.entry),
+
         exit:exitPrice,
 
         sl:n(position.sl),
+
         tp1:n(position.tp1),
 
         lev:n(position.lev),
+
         capital:n(position.capital),
+
         notional:n(position.notional),
 
         pnl:result.pnl,
+
         pnlPct:result.pnlPct,
+
         leveragedPct:result.leveragedPct,
 
         openedAt:position.openedAt,
+
         closedAt:new Date().toISOString(),
 
         status:'Kapalı'
     };
 
 
-    /*
-       Önce geçmişe yaz.
-       Ancak başarılı olduktan sonra
-       açık pozisyonu siliyoruz.
-    */
+    /* =========================
+       GEÇMİŞİ OKU
+    ========================= */
 
-    const history=readHistory();
+    let history=[];
 
-    const exists=
-        history.some(
-            x=>String(x.id)===String(record.id)
+    try{
+
+        const raw=
+            localStorage.getItem('paperHistory');
+
+        if(raw){
+
+            const parsed=JSON.parse(raw);
+
+            if(Array.isArray(parsed)){
+                history=parsed;
+            }
+
+        }
+
+    }catch(e){
+
+        console.warn(
+            'Geçmiş okunamadı:',
+            e
         );
 
-    if(!exists){
-
-        history.unshift(record);
-
-        writeHistory(history);
+        history=[];
     }
 
 
-    /*
-       Artık pozisyon kapalı.
-    */
+    /* =========================
+       YENİ KAYDI EKLE
+    ========================= */
+
+    history.unshift(record);
+
+
+    /* En fazla 100 kayıt */
+
+    history=history.slice(0,100);
+
+
+    /* =========================
+       LOCAL STORAGE'A KAYDET
+    ========================= */
+
+    try{
+
+        localStorage.setItem(
+            'paperHistory',
+            JSON.stringify(history)
+        );
+
+    }catch(e){
+
+        alert(
+            'İşlem kapatıldı ancak geçmiş kaydedilemedi: '+
+            e.message
+        );
+
+        return;
+    }
+
+
+    /* =========================
+       AÇIK POZİSYONU SİL
+    ========================= */
 
     clearOpenPosition();
 
 
-    /*
-       Ekranları anında yenile.
-    */
+    /* =========================
+       EKRANLARI YENİLE
+    ========================= */
 
     renderOpenPosition();
 
     renderHistory();
 
-    populateTrade();
+
+    /* Geçmiş ekranına geç */
+
+    showView('history');
+
+
+    /* =========================
+       KONTROL
+    ========================= */
+
+    console.log(
+        'PAPER TRADE KAPANDI:',
+        record
+    );
+
+    console.log(
+        'PAPER HISTORY:',
+        history
+    );
 
 
     alert(
-        `Paper pozisyon kapatıldı.\n\n`+
-        `Çıkış: ${fmt(exitPrice)}\n`+
-        `PNL: ${result.pnl>=0?'+':''}${fmt(result.pnl)} USDT`
+        `Paper pozisyon kapatıldı.
+
+${record.symbol} ${record.side}
+
+Çıkış:
+${fmt(record.exit)}
+
+PNL:
+${record.pnl>=0?'+':''}${fmt(record.pnl)} USDT
+
+Geçmişe kaydedildi.`
     );
 }
 
@@ -1720,98 +1804,222 @@ function closePaperPosition(){
 /* =========================
    GEÇMİŞ
 ========================= */
-
 function renderHistory(){
 
     const el=$('historyList');
 
     if(!el)return;
 
-    const history=readHistory();
 
-    /*
-       Geçmiş sadece KAPALI işlemleri gösterir.
-       Açık pozisyon burada gösterilmez.
-    */
+    let history=[];
 
-    const closed=
-        history.filter(
-            x=>x&&x.status==='Kapalı'
+    try{
+
+        const raw=
+            localStorage.getItem('paperHistory');
+
+        if(raw){
+
+            const parsed=JSON.parse(raw);
+
+            if(Array.isArray(parsed)){
+                history=parsed;
+            }
+
+        }
+
+    }catch(e){
+
+        console.warn(
+            'History parse hatası:',
+            e
         );
 
-
-    if(!closed.length){
-
-        el.innerHTML=`
-
-<div class="empty">
-Henüz kapatılmış paper işlem yok.
-</div>
-
-`;
-
-        return;
+        history=[];
     }
 
 
-    el.innerHTML=
-        closed.map(x=>`
+    const open=getOpenPosition();
+
+    let html='';
+
+
+    /* =========================
+       AÇIK POZİSYON
+    ========================= */
+
+    if(open){
+
+        const ticker=
+            tickers.get(open.symbol);
+
+
+        const price=
+            n(ticker?.c)||
+            n(open.currentPrice)||
+            n(open.entry);
+
+
+        const result=
+            calculatePnl(
+                open,
+                price
+            );
+
+
+        html+=`
 
 <div class="history">
 
-<b class="${
-    n(x.pnl)>=0
-        ?'green'
-        :'red'
-}">
-
-${x.symbol}
-${x.side}
-•
-KAPALI
-
+<b class="yellow">
+🟡 ${open.symbol} ${open.side} • AÇIK
 </b>
-
 
 <div class="muted">
 
-Giriş:
-${fmt(x.entry)}
-
+Giriş ${fmt(open.entry)}
 •
-
-Çıkış:
-${fmt(x.exit)}
-
+Anlık ${fmt(price)}
 •
-
-${x.lev}x
+${open.lev}x
 
 </div>
 
-
 <div class="${
-    n(x.pnl)>=0
+    result.pnl>=0
         ?'green'
         :'red'
 }">
 
 PNL:
-${n(x.pnl)>=0?'+':''}${fmt(x.pnl)}
+${result.pnl>=0?'+':''}${fmt(result.pnl)}
 USDT
 
 </div>
 
+</div>
+
+`;
+    }
+
+
+    /* =========================
+       KAPANMIŞ İŞLEMLER
+    ========================= */
+
+    if(history.length){
+
+        html+=history.map((x,index)=>{
+
+            const pnl=n(x.pnl);
+
+            const pnlClass=
+                pnl>=0
+                    ?'green'
+                    :'red';
+
+
+            return`
+
+<div class="history">
+
+<div class="row">
+
+<div>
+
+<b>
+${index+1}. ${x.symbol}
+</b>
 
 <div class="muted">
+${x.side} • ${x.status}
+</div>
 
-Fiyat değişimi:
-${n(x.pnlPct)>=0?'+':''}${n(x.pnlPct).toFixed(2)}%
+</div>
 
-•
+<div class="${pnlClass}">
+
+<b>
+${pnl>=0?'+':''}${fmt(pnl)} USDT
+</b>
+
+</div>
+
+</div>
+
+
+<div class="grid">
+
+<div class="box">
+
+<span>GİRİŞ</span>
+
+<b>
+${fmt(x.entry)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>ÇIKIŞ</span>
+
+<b>
+${fmt(x.exit)}
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>KALDIRAÇ</span>
+
+<b>
+${x.lev}x
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>SERMAYE</span>
+
+<b>
+${fmt(x.capital)} USDT
+</b>
+
+</div>
+
+</div>
+
+
+<div class="meta">
+
+<span>
+
+PNL
+<span class="${pnlClass}">
+
+${pnl>=0?'+':''}${fmt(pnl)} USDT
+
+</span>
+
+</span>
+
+
+<span>
 
 Kaldıraçlı:
+<span class="${pnlClass}">
+
 ${n(x.leveragedPct)>=0?'+':''}${n(x.leveragedPct).toFixed(2)}%
+
+</span>
+
+</span>
 
 </div>
 
@@ -1820,21 +2028,51 @@ ${n(x.leveragedPct)>=0?'+':''}${n(x.leveragedPct).toFixed(2)}%
 
 Açılış:
 ${x.openedAt
-    ?new Date(x.openedAt).toLocaleString('tr-TR')
-    :'—'}
+    ?new Date(x.openedAt)
+        .toLocaleString('tr-TR')
+    :'—'
+}
 
 <br>
 
 Kapanış:
 ${x.closedAt
-    ?new Date(x.closedAt).toLocaleString('tr-TR')
-    :'—'}
+    ?new Date(x.closedAt)
+        .toLocaleString('tr-TR')
+    :'—'
+}
 
 </div>
 
+
 </div>
 
-`).join('');
+`;
+
+        }).join('');
+    }
+
+
+    /* =========================
+       SONUÇ
+    ========================= */
+
+    if(!html){
+
+        html=`
+
+<div class="empty">
+
+Henüz tamamlanmış paper işlem yok.
+
+</div>
+
+`;
+
+    }
+
+
+    el.innerHTML=html;
 }
 
 
