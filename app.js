@@ -9,6 +9,8 @@ let busy=false;
 let lastScan=0;
 let scanTimer=null;
 let currentView='scan';
+let openDetailSymbol=null;
+
 
 const $=id=>document.getElementById(id);
 const n=v=>Number(v)||0;
@@ -621,7 +623,6 @@ async function analyze(symbol,t){
 
 }
 
-
 function render(){
 
  let rows=signals.filter(
@@ -631,28 +632,22 @@ function render(){
    (filter==='short'&&x.side==='SHORT')
  );
 
-
  $('long').textContent=
   signals.filter(
    x=>x.side==='LONG'&&x.score>=65
   ).length;
-
 
  $('short').textContent=
   signals.filter(
    x=>x.side==='SHORT'&&x.score<=35
   ).length;
 
-
- $('count').textContent=
-  tickers.size;
-
+ $('count').textContent=tickers.size;
 
  let min=
   Number(
    localStorage.getItem('minScore')||65
   );
-
 
  rows=rows.filter(
   x=>
@@ -661,16 +656,13 @@ function render(){
    100-x.score>=min
  );
 
-
  if(!rows.length){
 
   $('list').innerHTML=
    '<div class="empty">Henüz güçlü sinyal yok. Tarama devam ediyor…</div>';
 
   return;
-
  }
-
 
  $('list').innerHTML=
   rows.slice(0,12).map(x=>{
@@ -682,14 +674,12 @@ function render(){
      ?'sb'
      :'watch';
 
-
    let bar=
     x.side==='LONG'
      ?x.score
      :x.side==='SHORT'
      ?100-x.score
      :50;
-
 
    return `
 
@@ -711,7 +701,6 @@ Hacim $${compact(x.quote)}
 
 </div>
 
-
 <div style="text-align:right">
 
 <div class="price">
@@ -719,20 +708,16 @@ ${fmt(x.price)}
 </div>
 
 <div class="${x.change>=0?'green':'red'}">
-
 ${x.change>=0?'+':''}${x.change.toFixed(2)}%
-
 </div>
 
 </div>
-
 
 <span class="badge ${cls}">
 ${x.side} • ${x.score}/100
 </span>
 
 </div>
-
 
 <div class="bar">
 
@@ -748,7 +733,6 @@ background:${
 </i>
 
 </div>
-
 
 <div class="meta">
 
@@ -770,7 +754,6 @@ Funding ${(x.funding*100).toFixed(3)}%
 
 </div>
 
-
 <button
 class="action"
 onclick="toggleDetail('${x.symbol}')">
@@ -779,11 +762,9 @@ onclick="toggleDetail('${x.symbol}')">
 
 </button>
 
-
 <div
 id="d-${x.symbol}"
 class="detail">
-
 
 <div class="muted">
 
@@ -796,174 +777,89 @@ ${x.lev}x
 
 </div>
 
-
 <div class="plan">
 
-
 <div class="box">
-
 <span>GİRİŞ</span>
-
-<b>
-${fmt(x.entry)}
-</b>
-
+<b>${fmt(x.entry)}</b>
 </div>
 
-
 <div class="box">
-
 <span>SL</span>
-
-<b class="red">
-${fmt(x.sl)}
-</b>
-
+<b class="red">${fmt(x.sl)}</b>
 </div>
 
-
 <div class="box">
-
 <span>TP1</span>
-
-<b class="green">
-${fmt(x.tp1)}
-</b>
-
+<b class="green">${fmt(x.tp1)}</b>
 </div>
 
-
 <div class="box">
-
 <span>TP2</span>
-
-<b class="green">
-${fmt(x.tp2)}
-</b>
-
+<b class="green">${fmt(x.tp2)}</b>
 </div>
 
 </div>
-
 
 <div class="grid">
 
-
 <div class="box">
-
 <span>TP3</span>
-
-<b class="green">
-${fmt(x.tp3)}
-</b>
-
+<b class="green">${fmt(x.tp3)}</b>
 </div>
 
-
 <div class="box">
-
 <span>R/R TP1</span>
-
-<b>
-${x.rr1.toFixed(2)}
-</b>
-
+<b>${x.rr1.toFixed(2)}</b>
 </div>
 
-
 <div class="box">
-
 <span>R/R TP2</span>
-
-<b>
-${x.rr2.toFixed(2)}
-</b>
-
+<b>${x.rr2.toFixed(2)}</b>
 </div>
-
 
 <div class="box">
-
 <span>R/R TP3</span>
-
-<b>
-${x.rr3.toFixed(2)}
-</b>
-
+<b>${x.rr3.toFixed(2)}</b>
 </div>
 
 </div>
-
 
 <div class="grid">
 
-
 <div class="box">
-
 <span>ATR</span>
-
-<b>
-${x.atrPct.toFixed(2)}%
-</b>
-
+<b>${x.atrPct.toFixed(2)}%</b>
 </div>
 
-
 <div class="box">
-
 <span>OPEN INTEREST</span>
-
-<b>
-${compact(x.oi)}
-</b>
-
+<b>${compact(x.oi)}</b>
 </div>
 
-
 <div class="box">
-
 <span>LONG/SHORT</span>
-
-<b>
-${x.lsr?x.lsr.toFixed(2):'—'}
-</b>
-
+<b>${x.lsr?x.lsr.toFixed(2):'—'}</b>
 </div>
-
 
 <div class="box">
-
 <span>5M RSI</span>
-
-<b>
-${x.rsi5.toFixed(0)}
-</b>
-
+<b>${x.rsi5.toFixed(0)}</b>
 </div>
 
 </div>
-
 
 <div class="meta">
 
-<span>
-5M ${x.trend5>0?'↑':'↓'}
-</span>
-
-<span>
-15M ${x.trend15>0?'↑':'↓'}
-</span>
-
-<span>
-1H ${x.trend1>0?'↑':'↓'}
-</span>
+<span>5M ${x.trend5>0?'↑':'↓'}</span>
+<span>15M ${x.trend15>0?'↑':'↓'}</span>
+<span>1H ${x.trend1>0?'↑':'↓'}</span>
 
 <span>
 ${new Date(x.updated).toLocaleTimeString('tr-TR')}
 </span>
 
 </div>
-
 
 <button
 class="action"
@@ -973,7 +869,6 @@ Bu sinyalle İşlem'e git
 
 </button>
 
-
 </div>
 
 </article>
@@ -982,14 +877,50 @@ Bu sinyalle İşlem'e git
 
   }).join('');
 
+ /*
+   Tarama yenilendiğinde daha önce açık olan
+   işlem planını tekrar aç.
+ */
+
+ if(openDetailSymbol){
+
+  const detail=
+   document.getElementById(
+    'd-'+openDetailSymbol
+   );
+
+  if(detail)
+   detail.classList.add('open');
+
+ }
+
 }
+
+
 
 
 function toggleDetail(s){
 
+ const el=document.getElementById('d-'+s);
+
+ if(!el)return;
+
+ const wasOpen=el.classList.contains('open');
+
  document
-  .getElementById('d-'+s)
-  ?.classList.toggle('open');
+  .querySelectorAll('.detail.open')
+  .forEach(x=>x.classList.remove('open'));
+
+ if(wasOpen){
+
+  openDetailSymbol=null;
+
+ }else{
+
+  el.classList.add('open');
+  openDetailSymbol=s;
+
+ }
 
 }
 
