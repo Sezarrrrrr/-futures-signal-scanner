@@ -1752,6 +1752,11 @@ function savePaperTrade(){
 
     const symbol=
         $('tradeCoin')?.value;
+  
+   const signal=
+    signals.find(
+        x=>x.symbol===symbol
+    );
 
     const side=
         $('tradeSide')?.value;
