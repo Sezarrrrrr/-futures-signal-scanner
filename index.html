@@ -222,6 +222,104 @@ margin-top:9px
 padding:14px;
 margin:10px 0
 }
+  /* =========================
+   V8.2 PERFORMANS
+========================= */
+
+.performance-grid{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+margin-top:10px
+}
+
+.performance-card{
+background:#0d1827;
+border:1px solid #17263a;
+border-radius:12px;
+padding:12px
+}
+
+.performance-card span{
+display:block;
+color:#7e8da3;
+font-size:10px
+}
+
+.performance-card b{
+display:block;
+font-size:18px;
+margin-top:5px
+}
+
+.performance-wide{
+grid-column:1/-1
+}
+
+.performance-title{
+font-size:12px;
+font-weight:850;
+margin-top:14px;
+margin-bottom:7px
+}
+
+.performance-bar{
+height:8px;
+background:#17263a;
+border-radius:8px;
+overflow:hidden;
+margin-top:6px
+}
+
+.performance-bar i{
+display:block;
+height:100%;
+background:#49e49a
+}
+
+.performance-row{
+display:flex;
+justify-content:space-between;
+gap:10px;
+padding:9px 0;
+border-bottom:1px solid #142236;
+font-size:11px
+}
+
+.performance-row:last-child{
+border-bottom:0
+}
+
+.performance-positive{
+color:#49e49a
+}
+
+.performance-negative{
+color:#ff6678
+}
+
+.performance-neutral{
+color:#f4cf62
+}
+
+.performance-empty{
+text-align:center;
+color:#8290a4;
+padding:35px 10px;
+line-height:1.6
+}
+
+@media(max-width:420px){
+
+.performance-grid{
+grid-template-columns:1fr
+}
+
+.performance-wide{
+grid-column:auto
+}
+
+}
 
 .panel h2{
 font-size:17px;
@@ -600,6 +698,43 @@ Bu cihazda tutulan paper işlemleri.
 
 </section>
 
+  <section id="performanceView" class="hidden">
+
+<div class="panel">
+
+<h2>📊 Performans</h2>
+
+<div class="muted">
+Paper Trading sonuçlarının gerçek geçmiş verilerine göre analizi.
+</div>
+
+
+<div id="performanceContent">
+
+<div class="performance-empty">
+
+Henüz tamamlanmış paper işlem yok.
+
+<br>
+
+İşlemler kapandıkça performans istatistikleri burada oluşacak.
+
+</div>
+
+</div>
+
+
+<div class="note">
+
+Performans yalnızca kapanmış paper işlemler üzerinden hesaplanır.
+Açık pozisyonlar Win Rate ve toplam PNL hesabına dahil edilmez.
+
+</div>
+
+</div>
+
+</section>
+
 
 <section id="settingsView" class="hidden">
 
@@ -670,15 +805,36 @@ Piyasalar
 </button>
 
 
-<button class="navbtn" data-view="history" onclick="showView('history')">
+<button
+class="navbtn"
+data-view="history"
+onclick="showView('history')">
+
 <span class="navicon">▣</span>
 Geçmiş
+
 </button>
 
 
-<button class="navbtn" data-view="settings" onclick="showView('settings')">
+<button
+class="navbtn"
+data-view="performance"
+onclick="showView('performance')">
+
+<span class="navicon">📊</span>
+Performans
+
+</button>
+
+
+<button
+class="navbtn"
+data-view="settings"
+onclick="showView('settings')">
+
 <span class="navicon">⚙</span>
 Ayarlar
+
 </button>
 
 </nav>
@@ -686,7 +842,7 @@ Ayarlar
 </div>
 
 
-<script src="app.js?v=7.0"></script>
+<script src="app.js?v=8.2"></script>
 
 </body>
 </html>
