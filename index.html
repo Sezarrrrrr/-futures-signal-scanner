@@ -1,14 +1,28 @@
 <!doctype html>
 <html lang="tr">
 <head>
+
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050b14">
-<title>Futures Signal Scanner v7</title>
-<link rel="manifest" href="manifest.webmanifest">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+<meta
+name="theme-color"
+content="#050b14">
+
+<title>Futures Signal Scanner V8.3</title>
+
+<link
+rel="manifest"
+href="manifest.webmanifest">
 
 <style>
-*{box-sizing:border-box}
+
+*{
+box-sizing:border-box
+}
 
 body{
 margin:0;
@@ -20,7 +34,7 @@ font-family:system-ui,-apple-system,sans-serif
 .app{
 max-width:720px;
 margin:auto;
-padding:16px 13px 92px
+padding:16px 13px 100px
 }
 
 .top{
@@ -47,7 +61,9 @@ color:#9db0c8;
 font-size:11px
 }
 
-.live{color:#55e39a}
+.live{
+color:#55e39a
+}
 
 .cards{
 display:grid;
@@ -56,13 +72,19 @@ gap:8px;
 margin:16px 0
 }
 
-.stat,.coin,.panel,.detail{
+.stat,
+.coin,
+.panel,
+.detail,
+.performance-card{
 background:#0b1421;
 border:1px solid #17263a;
 border-radius:16px
 }
 
-.stat{padding:11px}
+.stat{
+padding:11px
+}
 
 .stat b{
 display:block;
@@ -70,9 +92,17 @@ font-size:18px;
 margin-top:4px
 }
 
-.green{color:#49e49a}
-.red{color:#ff6678}
-.yellow{color:#f4cf62}
+.green{
+color:#49e49a
+}
+
+.red{
+color:#ff6678
+}
+
+.yellow{
+color:#f4cf62
+}
 
 .tabs{
 display:flex;
@@ -114,8 +144,13 @@ justify-content:space-between;
 gap:8px
 }
 
-.symbol{font-weight:850}
-.price{font-weight:750}
+.symbol{
+font-weight:850
+}
+
+.price{
+font-weight:750
+}
 
 .badge{
 font-size:11px;
@@ -164,7 +199,9 @@ font-size:10px;
 color:#8b99ad
 }
 
-.action,.primary,.secondary{
+.action,
+.primary,
+.secondary{
 margin-top:10px;
 width:100%;
 border:1px solid #263950;
@@ -175,8 +212,13 @@ padding:10px;
 font-weight:750
 }
 
-.primary{background:#163b31}
-.secondary{background:#251923}
+.primary{
+background:#163b31
+}
+
+.secondary{
+background:#251923
+}
 
 .detail{
 display:none;
@@ -184,7 +226,9 @@ padding:14px;
 margin-top:10px
 }
 
-.detail.open{display:block}
+.detail.open{
+display:block
+}
 
 .grid{
 display:grid;
@@ -222,111 +266,15 @@ margin-top:9px
 padding:14px;
 margin:10px 0
 }
-  /* =========================
-   V8.2 PERFORMANS
-========================= */
-
-.performance-grid{
-display:grid;
-grid-template-columns:repeat(2,1fr);
-gap:8px;
-margin-top:10px
-}
-
-.performance-card{
-background:#0d1827;
-border:1px solid #17263a;
-border-radius:12px;
-padding:12px
-}
-
-.performance-card span{
-display:block;
-color:#7e8da3;
-font-size:10px
-}
-
-.performance-card b{
-display:block;
-font-size:18px;
-margin-top:5px
-}
-
-.performance-wide{
-grid-column:1/-1
-}
-
-.performance-title{
-font-size:12px;
-font-weight:850;
-margin-top:14px;
-margin-bottom:7px
-}
-
-.performance-bar{
-height:8px;
-background:#17263a;
-border-radius:8px;
-overflow:hidden;
-margin-top:6px
-}
-
-.performance-bar i{
-display:block;
-height:100%;
-background:#49e49a
-}
-
-.performance-row{
-display:flex;
-justify-content:space-between;
-gap:10px;
-padding:9px 0;
-border-bottom:1px solid #142236;
-font-size:11px
-}
-
-.performance-row:last-child{
-border-bottom:0
-}
-
-.performance-positive{
-color:#49e49a
-}
-
-.performance-negative{
-color:#ff6678
-}
-
-.performance-neutral{
-color:#f4cf62
-}
-
-.performance-empty{
-text-align:center;
-color:#8290a4;
-padding:35px 10px;
-line-height:1.6
-}
-
-@media(max-width:420px){
-
-.performance-grid{
-grid-template-columns:1fr
-}
-
-.performance-wide{
-grid-column:auto
-}
-
-}
 
 .panel h2{
 font-size:17px;
 margin:0 0 10px
 }
 
-.hidden{display:none}
+.hidden{
+display:none
+}
 
 .marketrow{
 display:grid;
@@ -337,7 +285,8 @@ border-bottom:1px solid #142236;
 font-size:12px
 }
 
-input,select{
+input,
+select{
 width:100%;
 padding:10px;
 border-radius:9px;
@@ -383,25 +332,116 @@ color:#6f8098;
 line-height:1.45
 }
 
-.positionStatus{
-padding:7px 10px;
-border-radius:20px;
-background:#173b2f;
-color:#55e39a;
-font-size:10px;
-display:inline-block;
-margin-bottom:10px
+/* =========================================================
+   V8.3 PERFORMANS
+========================================================= */
+
+.performance-grid{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+margin-top:10px
 }
 
-.closeBtn{
-margin-top:12px;
-width:100%;
-border:1px solid #63303a;
-background:#421b25;
-color:#ff8997;
-border-radius:10px;
-padding:12px;
-font-weight:850
+.performance-card{
+padding:12px
+}
+
+.performance-card span{
+display:block;
+color:#7e8da3;
+font-size:10px
+}
+
+.performance-card b{
+display:block;
+font-size:16px;
+margin-top:5px
+}
+
+.performance-wide{
+grid-column:1/-1
+}
+
+.performance-title{
+font-size:13px;
+font-weight:850;
+margin-bottom:9px
+}
+
+.performance-row{
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:10px;
+padding:8px 0;
+border-bottom:1px solid #142236;
+font-size:11px
+}
+
+.performance-row:last-child{
+border-bottom:0
+}
+
+.performance-positive{
+color:#49e49a
+}
+
+.performance-negative{
+color:#ff6678
+}
+
+.performance-neutral{
+color:#f4cf62
+}
+
+.performance-empty{
+text-align:center;
+padding:30px 10px;
+color:#8290a4;
+font-size:12px;
+line-height:1.5
+}
+
+.performance-chart{
+margin-top:10px;
+background:#0d1827;
+border-radius:12px;
+padding:10px
+}
+
+.chart-bars{
+display:flex;
+align-items:flex-end;
+gap:4px;
+height:130px;
+overflow:hidden
+}
+
+.chart-bar{
+flex:1;
+min-width:4px;
+border-radius:3px 3px 0 0;
+background:#49e49a;
+opacity:.85
+}
+
+.chart-bar.loss{
+background:#ff6678
+}
+
+.chart-zero{
+height:1px;
+background:#31435a;
+margin-top:-65px;
+position:relative
+}
+
+.performance-note{
+font-size:10px;
+color:#718198;
+line-height:1.45;
+margin-top:8px
 }
 
 .bottom{
@@ -419,18 +459,22 @@ max-width:720px;
 margin:auto;
 display:flex;
 justify-content:space-around;
-padding:7px 3px
+padding:7px 3px;
+overflow-x:auto
 }
 
 .navbtn{
 border:0;
 background:transparent;
 color:#73839a;
-font-size:10px;
-padding:5px 3px
+font-size:9px;
+padding:5px 3px;
+min-width:55px
 }
 
-.navbtn.active{color:#5de5a0}
+.navbtn.active{
+color:#5de5a0
+}
 
 .navicon{
 display:block;
@@ -440,14 +484,23 @@ margin-bottom:2px
 
 @media(max-width:420px){
 
-.navbtn{font-size:9px}
+.navbtn{
+font-size:8px;
+min-width:48px
+}
 
 .plan{
 grid-template-columns:repeat(2,1fr)
 }
 
+.performance-grid{
+grid-template-columns:repeat(2,1fr)
 }
+
+}
+
 </style>
+
 </head>
 
 <body>
@@ -457,38 +510,74 @@ grid-template-columns:repeat(2,1fr)
 <div class="top">
 
 <div>
+
 <h1>TARAMA / FIRSATLAR</h1>
 
 <div class="sub">
-Binance Futures • Sinyal Motoru v7
+Binance Futures • Sinyal Motoru V8.3
 </div>
 
 </div>
 
-<div id="status" class="status">
+<div
+id="status"
+class="status">
+
 BAĞLANIYOR
-</div>
 
 </div>
 
+</div>
+
+
+<!-- =====================================================
+     TARAMA
+===================================================== -->
 
 <section id="scanView">
 
 <div class="cards">
 
 <div class="stat">
-<span class="muted">GÜÇLÜ LONG</span>
-<b id="long" class="green">—</b>
+
+<span class="muted">
+GÜÇLÜ LONG
+</span>
+
+<b
+id="long"
+class="green">
+—
+</b>
+
 </div>
 
 <div class="stat">
-<span class="muted">GÜÇLÜ SHORT</span>
-<b id="short" class="red">—</b>
+
+<span class="muted">
+GÜÇLÜ SHORT
+</span>
+
+<b
+id="short"
+class="red">
+—
+</b>
+
 </div>
 
 <div class="stat">
-<span class="muted">TARANAN</span>
-<b id="count" class="yellow">—</b>
+
+<span class="muted">
+TARANAN
+</span>
+
+<b
+id="count"
+class="yellow">
+—
+</b>
+
 </div>
 
 </div>
@@ -496,30 +585,49 @@ BAĞLANIYOR
 
 <div class="tabs">
 
-<button id="all" class="on" onclick="setFilter('all')">
+<button
+id="all"
+class="on"
+onclick="setFilter('all')">
+
 Tümü
+
 </button>
 
-<button id="longTab" onclick="setFilter('long')">
+<button
+id="longTab"
+onclick="setFilter('long')">
+
 LONG
+
 </button>
 
-<button id="shortTab" onclick="setFilter('short')">
+<button
+id="shortTab"
+onclick="setFilter('short')">
+
 SHORT
+
 </button>
 
 </div>
 
 
-<div class="refresh" id="refresh">
+<div
+class="refresh"
+id="refresh">
+
 Analiz hazırlanıyor…
+
 </div>
 
 
 <div id="list">
 
 <div class="empty">
+
 Binance verisi bekleniyor…
+
 </div>
 
 </div>
@@ -527,11 +635,19 @@ Binance verisi bekleniyor…
 </section>
 
 
-<section id="marketsView" class="hidden">
+<!-- =====================================================
+     PİYASALAR
+===================================================== -->
+
+<section
+id="marketsView"
+class="hidden">
 
 <div class="panel">
 
-<h2>📊 Piyasalar</h2>
+<h2>
+📊 Piyasalar
+</h2>
 
 <div class="muted">
 Canlı USDT-M Futures • yüksek hacimli pariteler
@@ -544,20 +660,19 @@ Canlı USDT-M Futures • yüksek hacimli pariteler
 </section>
 
 
-<section id="tradeView" class="hidden">
+<!-- =====================================================
+     İŞLEM
+===================================================== -->
 
-<div id="openPosition">
-
-<div class="empty">
-Açık paper pozisyon bulunmuyor.
-</div>
-
-</div>
-
+<section
+id="tradeView"
+class="hidden">
 
 <div class="panel">
 
-<h2>＋ İşlem / Paper Trading</h2>
+<h2>
+＋ İşlem / Paper Trading
+</h2>
 
 <div class="muted">
 Gerçek emir göndermez. Seçtiğin sinyal üzerinden risk planı hesaplar.
@@ -619,7 +734,10 @@ Kaldıraç
 <label>
 Giriş
 
-<input id="tradeEntry" type="number" step="any">
+<input
+id="tradeEntry"
+type="number"
+step="any">
 
 </label>
 
@@ -631,7 +749,11 @@ Giriş
 <label>
 Sermaye (USDT)
 
-<input id="tradeCapital" type="number" value="100" min="1">
+<input
+id="tradeCapital"
+type="number"
+value="100"
+min="1">
 
 </label>
 
@@ -647,7 +769,10 @@ Sermaye (USDT)
 <label>
 Stop Loss
 
-<input id="tradeSL" type="number" step="any">
+<input
+id="tradeSL"
+type="number"
+step="any">
 
 </label>
 
@@ -659,7 +784,10 @@ Stop Loss
 <label>
 TP1
 
-<input id="tradeTP1" type="number" step="any">
+<input
+id="tradeTP1"
+type="number"
+step="any">
 
 </label>
 
@@ -668,29 +796,78 @@ TP1
 </div>
 
 
-<button class="primary" onclick="savePaperTrade()">
+<div class="two">
+
+<div>
+
+<label>
+TP2
+
+<input
+id="tradeTP2"
+type="number"
+step="any">
+
+</label>
+
+</div>
+
+
+<div>
+
+<label>
+TP3
+
+<input
+id="tradeTP3"
+type="number"
+step="any">
+
+</label>
+
+</div>
+
+</div>
+
+
+<button
+class="primary"
+onclick="savePaperTrade()">
+
 Paper işlemi kaydet
+
 </button>
 
 
-<div id="calcResult" class="calc"></div> 
-
-<div id="openPosition"></div>
+<div
+id="calcResult"
+class="calc">
+</div>
 
 </div>
 
 </section>
 
 
-<section id="historyView" class="hidden">
+<!-- =====================================================
+     GEÇMİŞ
+===================================================== -->
+
+<section
+id="historyView"
+class="hidden">
 
 <div class="panel">
 
-<h2>▣ Geçmiş</h2>
+<h2>
+▣ Geçmiş
+</h2>
 
 <div class="muted">
 Bu cihazda tutulan paper işlemleri.
 </div>
+
+<div id="historyStats"></div>
 
 <div id="historyList"></div>
 
@@ -698,33 +875,37 @@ Bu cihazda tutulan paper işlemleri.
 
 </section>
 
-  <section id="performanceView" class="hidden">
+
+<!-- =====================================================
+     V8.3 PERFORMANS
+===================================================== -->
+
+<section
+id="performanceView"
+class="hidden">
 
 <div class="panel">
 
-<h2>📊 Performans</h2>
+<h2>
+📊 Performans
+</h2>
 
 <div class="muted">
 Paper Trading sonuçlarının gerçek geçmiş verilerine göre analizi.
 </div>
 
-
-<div id="performanceContent">
+<div
+id="performanceContent">
 
 <div class="performance-empty">
 
-Henüz tamamlanmış paper işlem yok.
+📊 Henüz tamamlanmış paper işlem yok.
 
-<br>
+<br><br>
 
 İşlemler kapandıkça performans istatistikleri burada oluşacak.
 
-</div>
-
-</div>
-
-
-<div class="note">
+<br><br>
 
 Performans yalnızca kapanmış paper işlemler üzerinden hesaplanır.
 Açık pozisyonlar Win Rate ve toplam PNL hesabına dahil edilmez.
@@ -733,39 +914,69 @@ Açık pozisyonlar Win Rate ve toplam PNL hesabına dahil edilmez.
 
 </div>
 
+</div>
+
 </section>
 
 
-<section id="settingsView" class="hidden">
+<!-- =====================================================
+     AYARLAR
+===================================================== -->
+
+<section
+id="settingsView"
+class="hidden">
 
 <div class="panel">
 
-<h2>⚙ Ayarlar</h2>
+<h2>
+⚙ Ayarlar
+</h2>
 
 
 <label>
+
 Minimum güçlü sinyal skoru
 
-<input id="minScore" type="number" min="50" max="95" value="65">
+<input
+id="minScore"
+type="number"
+min="50"
+max="95"
+value="65">
 
 </label>
 
 
 <label>
+
 Tarama aralığı (saniye)
 
-<input id="scanSeconds" type="number" min="30" max="600" value="90">
+<input
+id="scanSeconds"
+type="number"
+min="30"
+max="600"
+value="90">
 
 </label>
 
 
-<button class="primary" onclick="saveSettings()">
+<button
+class="primary"
+onclick="saveSettings()">
+
 Ayarları kaydet
+
 </button>
 
 
-<button class="secondary" onclick="clearHistory()">
+<button
+class="secondary"
+onclick="clearHistory()">
+
 Paper geçmişini temizle
+
 </button>
 
 
@@ -783,25 +994,48 @@ Gerçek işlem kararı vermeden önce backtest ve paper trading yapılmalıdır.
 </main>
 
 
+<!-- =====================================================
+     ALT MENÜ
+===================================================== -->
+
 <div class="bottom">
 
 <nav>
 
-<button class="navbtn active" data-view="scan" onclick="showView('scan')">
+
+<button
+class="navbtn active"
+data-view="scan"
+onclick="showView('scan')">
+
 <span class="navicon">⌁</span>
+
 Tarama
+
 </button>
 
 
-<button class="navbtn" data-view="markets" onclick="showView('markets')">
+<button
+class="navbtn"
+data-view="markets"
+onclick="showView('markets')">
+
 <span class="navicon">◉</span>
+
 Piyasalar
+
 </button>
 
 
-<button class="navbtn" data-view="trade" onclick="showView('trade')">
+<button
+class="navbtn"
+data-view="trade"
+onclick="showView('trade')">
+
 <span class="navicon">＋</span>
+
 İşlem
+
 </button>
 
 
@@ -811,6 +1045,7 @@ data-view="history"
 onclick="showView('history')">
 
 <span class="navicon">▣</span>
+
 Geçmiş
 
 </button>
@@ -822,6 +1057,7 @@ data-view="performance"
 onclick="showView('performance')">
 
 <span class="navicon">📊</span>
+
 Performans
 
 </button>
@@ -833,16 +1069,18 @@ data-view="settings"
 onclick="showView('settings')">
 
 <span class="navicon">⚙</span>
+
 Ayarlar
 
 </button>
+
 
 </nav>
 
 </div>
 
 
-<script src="app.js?v=8.2"></script>
+<script src="app.js?v=8.3"></script>
 
 </body>
 </html>
