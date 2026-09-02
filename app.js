@@ -1445,6 +1445,12 @@ function saveHistory(history){
     );
 }
 
+function getPaperHistory(){
+
+    return getHistory();
+
+}
+
 
 /* =========================================================
    TRADE EKRANI
