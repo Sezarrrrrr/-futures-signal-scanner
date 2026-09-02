@@ -1321,30 +1321,53 @@ function normalizePosition(p){
 
     return{
 
-        id:p.id||Date.now(),
+        id:
+            p.id||
+            Date.now(),
 
-        symbol:p.symbol,
+        symbol:
+            p.symbol,
 
-        side:p.side==='SHORT'
-            ?'SHORT'
-            :'LONG',
+        side:
+            p.side==='SHORT'
+                ?'SHORT'
+                :'LONG',
 
-        entry:n(p.entry),
+        /* V8.3 SİNYAL SNAPSHOT */
+        score:
+            Number.isFinite(Number(p.score))
+                ?n(p.score)
+                :null,
+
+        confirmation:
+            p.confirmation||
+            '',
+
+        entry:
+            n(p.entry),
 
         currentPrice:
-            n(p.currentPrice)||n(p.entry),
+            n(p.currentPrice)||
+            n(p.entry),
 
-        sl:n(p.sl),
+        sl:
+            n(p.sl),
 
-        tp1:n(p.tp1),
+        tp1:
+            n(p.tp1),
 
-        tp2:n(p.tp2),
+        tp2:
+            n(p.tp2),
 
-        tp3:n(p.tp3),
+        tp3:
+            n(p.tp3),
 
-        lev:n(p.lev)||1,
+        lev:
+            n(p.lev)||
+            1,
 
-        capital:n(p.capital),
+        capital:
+            n(p.capital),
 
         notional:
             n(p.notional)||
@@ -1354,13 +1377,17 @@ function normalizePosition(p){
             p.openedAt||
             new Date().toISOString(),
 
-        status:'Açık',
+        status:
+            'Açık',
 
-        maxPnl:n(p.maxPnl),
+        maxPnl:
+            n(p.maxPnl),
 
-        minPnl:n(p.minPnl),
+        minPnl:
+            n(p.minPnl),
 
-        lastPnl:n(p.lastPnl),
+        lastPnl:
+            n(p.lastPnl),
 
         updatedAt:
             p.updatedAt||
@@ -1828,70 +1855,80 @@ function savePaperTrade(){
         n(ticker?.c)||entry;
 
 
-    const position={
+const position={
 
-        id:
-            Date.now()+
-            '-' +
-            Math.random()
-                .toString(36)
-                .slice(2,8),
+    id:
+        Date.now()+
+        '-' +
+        Math.random()
+            .toString(36)
+            .slice(2,8),
 
-        symbol,
+    symbol,
 
-        side,
+    side,
 
-        entry,
+    /* V8.3 */
+    score:
+        signal
+            ?n(signal.score)
+            :null,
 
-        currentPrice,
+    confirmation:
+        signal
+            ?signal.confirmation
+            :'',
 
-        sl,
+    entry,
 
-        tp1,
+    currentPrice,
 
-        tp2:
+    sl,
 
-            tp2||
-            (
-                side==='LONG'
-                    ?entry+
-                        Math.abs(tp1-entry)*2
-                    :entry-
-                        Math.abs(tp1-entry)*2
-            ),
+    tp1,
 
-        tp3:
+    tp2:
+        tp2||
+        (
+            side==='LONG'
+                ?entry+
+                    Math.abs(tp1-entry)*2
+                :entry-
+                    Math.abs(tp1-entry)*2
+        ),
 
-            tp3||
-            (
-                side==='LONG'
-                    ?entry+
-                        Math.abs(tp1-entry)*3
-                    :entry-
-                        Math.abs(tp1-entry)*3
-            ),
+    tp3:
+        tp3||
+        (
+            side==='LONG'
+                ?entry+
+                    Math.abs(tp1-entry)*3
+                :entry-
+                    Math.abs(tp1-entry)*3
+        ),
 
-        lev,
+    lev,
 
-        capital,
+    capital,
 
-        notional:
-            capital*lev,
+    notional:
+        capital*lev,
 
-        openedAt:
-            new Date().toISOString(),
+    openedAt:
+        new Date().toISOString(),
 
-        status:'Açık',
+    status:
+        'Açık',
 
-        maxPnl:0,
+    maxPnl:0,
 
-        minPnl:0,
+    minPnl:0,
 
-        lastPnl:0,
+    lastPnl:0,
 
-        updatedAt:Date.now()
-    };
-
+    updatedAt:
+        Date.now()
+};
 
     saveOpenPosition(position);
 
@@ -2466,55 +2503,83 @@ function closePaperPosition(
         );
 
 
-    const record={
+  const record={
 
-        id:position.id,
+    id:
+        position.id,
 
-        symbol:position.symbol,
+    symbol:
+        position.symbol,
 
-        side:position.side,
+    side:
+        position.side,
 
-        entry:position.entry,
+    /* V8.3 SİNYAL BİLGİSİ */
+    score:
+        Number.isFinite(
+            Number(position.score)
+        )
+            ?n(position.score)
+            :null,
 
-        exit:exitPrice,
+    confirmation:
+        position.confirmation||
+        '',
 
-        sl:position.sl,
+    entry:
+        position.entry,
 
-        tp1:position.tp1,
+    exit:
+        exitPrice,
 
-        tp2:position.tp2,
+    sl:
+        position.sl,
 
-        tp3:position.tp3,
+    tp1:
+        position.tp1,
 
-        lev:position.lev,
+    tp2:
+        position.tp2,
 
-        capital:position.capital,
+    tp3:
+        position.tp3,
 
-        notional:position.notional,
+    lev:
+        position.lev,
 
-        pnl:result.pnl,
+    capital:
+        position.capital,
 
-        pnlPct:result.pnlPct,
+    notional:
+        position.notional,
 
-        leveragedPct:
-            result.leveragedPct,
+    pnl:
+        result.pnl,
 
-        maxPnl:
-            n(position.maxPnl),
+    pnlPct:
+        result.pnlPct,
 
-        minPnl:
-            n(position.minPnl),
+    leveragedPct:
+        result.leveragedPct,
 
-        openedAt:
-            position.openedAt,
+    maxPnl:
+        n(position.maxPnl),
 
-        closedAt:
-            new Date().toISOString(),
+    minPnl:
+        n(position.minPnl),
 
-        status:'Kapalı',
+    openedAt:
+        position.openedAt,
 
-        closeReason:reason
-    };
+    closedAt:
+        new Date().toISOString(),
+
+    status:
+        'Kapalı',
+
+    closeReason:
+        reason
+};
 
 
     const history=
@@ -3022,23 +3087,22 @@ function renderPerformance(){
 
     const el=$('performanceContent');
 
-    if(!el)return;
+    if(!el)
+        return;
 
 
-    const history=getPaperHistory();
+    const history=
+        getHistory();
 
 
-    /*
-     Sadece gerçekten kapanmış
-     işlemleri kullan.
-    */
+    /* SADECE KAPALI İŞLEMLER */
 
     const closed=
         history.filter(
             x=>
                 x &&
                 (
-                    x.status==='Kapalı' ||
+                    x.status==='Kapalı'||
                     x.status==='Closed'
                 )
         );
@@ -3050,12 +3114,17 @@ function renderPerformance(){
 
 <div class="performance-empty">
 
-📊 Henüz tamamlanmış işlem yok.
+📊 Henüz tamamlanmış paper işlem yok.
 
 <br><br>
 
 İlk paper işlemini kapattığında
 istatistikler burada görünecek.
+
+<br><br>
+
+Performans yalnızca kapanmış işlemler üzerinden hesaplanır.
+Açık pozisyonlar hesaba dahil edilmez.
 
 </div>
 
@@ -3065,16 +3134,17 @@ istatistikler burada görünecek.
     }
 
 
-    const total=closed.length;
+    const total=
+        closed.length;
 
 
-    const winners=
+    const wins=
         closed.filter(
             x=>n(x.pnl)>0
         );
 
 
-    const losers=
+    const losses=
         closed.filter(
             x=>n(x.pnl)<0
         );
@@ -3086,12 +3156,6 @@ istatistikler burada görünecek.
         );
 
 
-    const winRate=
-        total
-            ?winners.length/total*100
-            :0;
-
-
     const totalPnl=
         closed.reduce(
             (sum,x)=>
@@ -3100,8 +3164,20 @@ istatistikler burada görünecek.
         );
 
 
+    const winRate=
+        total
+            ?wins.length/total*100
+            :0;
+
+
+    const avgPnl=
+        total
+            ?totalPnl/total
+            :0;
+
+
     const grossProfit=
-        winners.reduce(
+        wins.reduce(
             (sum,x)=>
                 sum+n(x.pnl),
             0
@@ -3109,28 +3185,17 @@ istatistikler burada görünecek.
 
 
     const grossLoss=
-        losers.reduce(
+        losses.reduce(
             (sum,x)=>
                 sum+n(x.pnl),
             0
         );
 
 
-    const avgWin=
-        winners.length
-            ?grossProfit/winners.length
-            :0;
-
-
-    const avgLoss=
-        losers.length
-            ?grossLoss/losers.length
-            :0;
-
-
     const profitFactor=
         grossLoss<0
-            ?grossProfit/Math.abs(grossLoss)
+            ?grossProfit/
+                Math.abs(grossLoss)
             :grossProfit>0
                 ?Infinity
                 :0;
@@ -3139,20 +3204,20 @@ istatistikler burada görünecek.
     const best=
         [...closed].sort(
             (a,b)=>
-                n(b.pnl)-n(a.pnl)
+                n(b.pnl)-
+                n(a.pnl)
         )[0];
 
 
     const worst=
         [...closed].sort(
             (a,b)=>
-                n(a.pnl)-n(b.pnl)
+                n(a.pnl)-
+                n(b.pnl)
         )[0];
 
 
-    /*
-     LONG / SHORT
-    */
+    /* LONG */
 
     const longs=
         closed.filter(
@@ -3160,20 +3225,8 @@ istatistikler burada görünecek.
         );
 
 
-    const shorts=
-        closed.filter(
-            x=>x.side==='SHORT'
-        );
-
-
     const longWins=
         longs.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const shortWins=
-        shorts.filter(
             x=>n(x.pnl)>0
         );
 
@@ -3186,6 +3239,27 @@ istatistikler burada görünecek.
         );
 
 
+    const longRate=
+        longs.length
+            ?longWins.length/
+                longs.length*100
+            :0;
+
+
+    /* SHORT */
+
+    const shorts=
+        closed.filter(
+            x=>x.side==='SHORT'
+        );
+
+
+    const shortWins=
+        shorts.filter(
+            x=>n(x.pnl)>0
+        );
+
+
     const shortPnl=
         shorts.reduce(
             (sum,x)=>
@@ -3194,24 +3268,14 @@ istatistikler burada görünecek.
         );
 
 
-    const longWinRate=
-        longs.length
-            ?longWins.length/longs.length*100
-            :0;
-
-
-    const shortWinRate=
+    const shortRate=
         shorts.length
-            ?shortWins.length/shorts.length*100
+            ?shortWins.length/
+                shorts.length*100
             :0;
 
 
-    /*
-     SİNYAL SKORU
-
-     Eski işlemlerde score yoksa
-     "—" altında bırakılır.
-    */
+    /* SİNYAL SKORU */
 
     const scored=
         closed.filter(
@@ -3222,85 +3286,105 @@ istatistikler burada görünecek.
         );
 
 
-    const scoreBuckets=[
-
-        {
-            name:'80–100',
-            min:80,
-            max:100
-        },
-
-        {
-            name:'70–79',
-            min:70,
-            max:79
-        },
-
-        {
-            name:'65–69',
-            min:65,
-            max:69
-        },
-
-        {
-            name:'55–64',
-            min:55,
-            max:64
-        },
-
-        {
-            name:'0–54',
-            min:0,
-            max:54
-        }
-
-    ];
+    const avgScore=
+        scored.length
+            ?scored.reduce(
+                (sum,x)=>
+                    sum+n(x.score),
+                0
+            )/
+            scored.length
+            :0;
 
 
-    const scoreStats=
-        scoreBuckets.map(bucket=>{
+    const highScore=
+        scored.filter(
+            x=>n(x.score)>=65
+        );
 
-            const rows=
-                scored.filter(
-                    x=>{
-                        const s=n(x.score);
 
-                        return(
-                            s>=bucket.min&&
-                            s<=bucket.max
-                        );
-                    }
+    const highScoreWins=
+        highScore.filter(
+            x=>n(x.pnl)>0
+        );
+
+
+    const highScoreRate=
+        highScore.length
+            ?highScoreWins.length/
+                highScore.length*100
+            :0;
+
+
+    /* MAKSİMUM DRAWDOWN */
+
+    let cumulative=0;
+
+    let peak=0;
+
+    let maxDrawdown=0;
+
+
+    closed
+        .slice()
+        .reverse()
+        .forEach(x=>{
+
+            cumulative+=n(x.pnl);
+
+            peak=
+                Math.max(
+                    peak,
+                    cumulative
                 );
 
+            const dd=
+                peak-cumulative;
 
-            const wins=
-                rows.filter(
-                    x=>n(x.pnl)>0
-                ).length;
-
-
-            return{
-
-                ...bucket,
-
-                count:rows.length,
-
-                wins,
-
-                rate:
-                    rows.length
-                        ?wins/rows.length*100
-                        :0
-            };
-
+            maxDrawdown=
+                Math.max(
+                    maxDrawdown,
+                    dd
+                );
         });
 
 
-    /*
-     KAPANIŞ NEDENLERİ
-    */
+    /* ORTALAMA R/R */
 
-    const closeReasons={};
+    const rrValues=
+        closed
+            .map(x=>{
+
+                const risk=
+                    Math.abs(
+                        n(x.entry)-
+                        n(x.sl)
+                    );
+
+                if(!risk)
+                    return 0;
+
+                return Math.abs(
+                    n(x.tp1)-
+                    n(x.entry)
+                )/risk;
+            })
+            .filter(x=>x>0);
+
+
+    const avgRR=
+        rrValues.length
+            ?rrValues.reduce(
+                (a,b)=>a+b,
+                0
+            )/
+            rrValues.length
+            :0;
+
+
+    /* KAPANIŞ NEDENLERİ */
+
+    const reasons={};
 
 
     closed.forEach(x=>{
@@ -3309,10 +3393,8 @@ istatistikler burada görünecek.
             x.closeReason||
             'MANUEL';
 
-
-        closeReasons[reason]=
-            (closeReasons[reason]||0)+1;
-
+        reasons[reason]=
+            (reasons[reason]||0)+1;
     });
 
 
@@ -3322,102 +3404,62 @@ istatistikler burada görünecek.
             :'performance-negative';
 
 
-    const bestClass=
-        n(best?.pnl)>=0
-            ?'performance-positive'
-            :'performance-negative';
+    /* SON İŞLEMLER GRAFİĞİ */
+
+    const chartData=
+        closed
+            .slice()
+            .reverse();
 
 
-    const worstClass=
-        n(worst?.pnl)>=0
-            ?'performance-positive'
-            :'performance-negative';
+    let running=0;
 
 
-    let scoreHtml='';
+    const chartBars=
+        chartData.map(x=>{
+
+            running+=n(x.pnl);
+
+            const height=
+                Math.min(
+                    100,
+                    Math.max(
+                        5,
+                        Math.abs(
+                            n(x.pnl)
+                        )/
+                        Math.max(
+                            Math.abs(
+                                best?.pnl||1
+                            ),
+                            Math.abs(
+                                worst?.pnl||1
+                            ),
+                            1
+                        )*100
+                    )
+                );
 
 
-    if(scored.length){
+            return`
 
-        scoreHtml=
-            scoreStats.map(s=>`
-
-<div class="performance-row">
-
-<span>
-
-<b>${s.name}</b>
-
-<br>
-
-<span class="muted">
-
-${s.count} işlem
-•
-${s.wins} kazanan
-
-</span>
-
-</span>
-
-
-<span
-class="${
-    s.rate>=60
-        ?'performance-positive'
-        :s.rate>=50
-        ?'performance-neutral'
-        :'performance-negative'
-}">
-
-${s.count
-    ?s.rate.toFixed(1)+'%'
-    :'—'}
-
-</span>
-
-</div>
-
-`).join('');
-
-    }else{
-
-        scoreHtml=`
-
-<div class="performance-empty">
-
-Geçmiş işlemlerde sinyal skoru
-kaydı bulunmuyor.
-
-Yeni işlemler V8.2 ile skor bilgisi
-kaydetmeye başlayacak.
-
+<div
+class="chart-bar ${
+    n(x.pnl)<0
+        ?'loss'
+        :''
+}"
+style="height:${height}%"
+title="${
+    escapeHtml(x.symbol)
+} • ${
+    n(x.pnl)>=0?'+':''
+}${fmt(x.pnl)} USDT">
 </div>
 
 `;
-
-    }
-
-
-    const reasonsHtml=
-        Object.entries(closeReasons)
-            .sort(
-                (a,b)=>b[1]-a[1]
-            )
-            .map(
-                ([reason,count])=>`
-
-<div class="performance-row">
-
-<span>${reason}</span>
-
-<b>${count}</b>
-
-</div>
-
-`
-            )
-            .join('');
+        })
+        .join('');
 
 
     el.innerHTML=`
@@ -3427,16 +3469,22 @@ kaydetmeye başlayacak.
 
 <div class="performance-card">
 
-<span>TOPLAM İŞLEM</span>
+<span>
+TOPLAM İŞLEM
+</span>
 
-<b>${total}</b>
+<b>
+${total}
+</b>
 
 </div>
 
 
 <div class="performance-card">
 
-<span>WIN RATE</span>
+<span>
+WIN RATE
+</span>
 
 <b class="${
     winRate>=50
@@ -3453,11 +3501,13 @@ ${winRate.toFixed(1)}%
 
 <div class="performance-card">
 
-<span>🏆 KAZANAN</span>
+<span>
+🏆 KAZANAN
+</span>
 
 <b class="performance-positive">
 
-${winners.length}
+${wins.length}
 
 </b>
 
@@ -3466,11 +3516,13 @@ ${winners.length}
 
 <div class="performance-card">
 
-<span>⚠ KAYBEDEN</span>
+<span>
+⚠ KAYBEDEN
+</span>
 
 <b class="performance-negative">
 
-${losers.length}
+${losses.length}
 
 </b>
 
@@ -3479,7 +3531,9 @@ ${losers.length}
 
 <div class="performance-card">
 
-<span>BERABERE</span>
+<span>
+BERABERE
+</span>
 
 <b class="performance-neutral">
 
@@ -3492,12 +3546,54 @@ ${breakeven.length}
 
 <div class="performance-card">
 
-<span>PROFIT FACTOR</span>
+<span>
+ORTALAMA PNL
+</span>
+
+<b class="${
+    avgPnl>=0
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${avgPnl>=0?'+':''}
+${fmt(avgPnl)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<span>
+💰 TOPLAM PNL
+</span>
+
+<b class="${pnlClass}">
+
+${totalPnl>=0?'+':''}
+${fmt(totalPnl)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>
+PROFIT FACTOR
+</span>
 
 <b>
 
 ${
-    Number.isFinite(profitFactor)
+    Number.isFinite(
+        profitFactor
+    )
         ?profitFactor.toFixed(2)
         :'∞'
 }
@@ -3507,39 +3603,73 @@ ${
 </div>
 
 
-<div class="performance-card performance-wide">
-
-<span>💰 TOPLAM PNL</span>
-
-<b class="${pnlClass}">
-
-${totalPnl>=0?'+':''}${fmt(totalPnl)} USDT
-
-</b>
-
-</div>
-
-
 <div class="performance-card">
 
-<span>📈 ORTALAMA KAZANÇ</span>
-
-<b class="performance-positive">
-
-${avgWin>=0?'+':''}${fmt(avgWin)} USDT
-
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>📉 ORTALAMA KAYIP</span>
+<span>
+MAKS. DRAWDOWN
+</span>
 
 <b class="performance-negative">
 
-${avgLoss>=0?'+':''}${fmt(avgLoss)} USDT
+-${fmt(maxDrawdown)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>
+ORTALAMA R/R
+</span>
+
+<b>
+
+${avgRR.toFixed(2)}
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>
+ORTALAMA SKOR
+</span>
+
+<b>
+
+${
+    scored.length
+        ?avgScore.toFixed(1)
+        :'—'
+}
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>
+65+ SKOR WIN RATE
+</span>
+
+<b class="${
+    highScoreRate>=50
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${
+    highScore.length
+        ?highScoreRate.toFixed(1)+'%'
+        :'—'
+}
 
 </b>
 
@@ -3548,7 +3678,9 @@ ${avgLoss>=0?'+':''}${fmt(avgLoss)} USDT
 
 <div class="performance-card performance-wide">
 
-<span>🏆 EN İYİ İŞLEM</span>
+<span>
+🏆 EN İYİ İŞLEM
+</span>
 
 <b class="performance-positive">
 
@@ -3562,7 +3694,9 @@ ${best?.side||'—'}
 
 •
 
-${n(best?.pnl)>=0?'+':''}${fmt(best?.pnl)} USDT
+${n(best?.pnl)>=0?'+':''}
+${fmt(best?.pnl)}
+USDT
 
 </div>
 
@@ -3571,9 +3705,11 @@ ${n(best?.pnl)>=0?'+':''}${fmt(best?.pnl)} USDT
 
 <div class="performance-card performance-wide">
 
-<span>⚠ EN KÖTÜ İŞLEM</span>
+<span>
+⚠ EN KÖTÜ İŞLEM
+</span>
 
-<b class="${worstClass}">
+<b class="performance-negative">
 
 ${worst?.symbol||'—'}
 
@@ -3585,7 +3721,9 @@ ${worst?.side||'—'}
 
 •
 
-${n(worst?.pnl)>=0?'+':''}${fmt(worst?.pnl)} USDT
+${n(worst?.pnl)>=0?'+':''}
+${fmt(worst?.pnl)}
+USDT
 
 </div>
 
@@ -3603,16 +3741,22 @@ ${n(worst?.pnl)>=0?'+':''}${fmt(worst?.pnl)} USDT
 
 <div class="performance-row">
 
-<span>İşlem</span>
+<span>
+İşlem
+</span>
 
-<b>${longs.length}</b>
+<b>
+${longs.length}
+</b>
 
 </div>
 
 
 <div class="performance-row">
 
-<span>Kazanan</span>
+<span>
+Kazanan
+</span>
 
 <b class="performance-positive">
 
@@ -3625,15 +3769,17 @@ ${longWins.length}
 
 <div class="performance-row">
 
-<span>Win Rate</span>
+<span>
+Win Rate
+</span>
 
 <b class="${
-    longWinRate>=50
+    longRate>=50
         ?'performance-positive'
         :'performance-negative'
 }">
 
-${longWinRate.toFixed(1)}%
+${longRate.toFixed(1)}%
 
 </b>
 
@@ -3642,7 +3788,9 @@ ${longWinRate.toFixed(1)}%
 
 <div class="performance-row">
 
-<span>Toplam PNL</span>
+<span>
+Toplam PNL
+</span>
 
 <b class="${
     longPnl>=0
@@ -3650,7 +3798,9 @@ ${longWinRate.toFixed(1)}%
         :'performance-negative'
 }">
 
-${longPnl>=0?'+':''}${fmt(longPnl)} USDT
+${longPnl>=0?'+':''}
+${fmt(longPnl)}
+USDT
 
 </b>
 
@@ -3670,16 +3820,22 @@ ${longPnl>=0?'+':''}${fmt(longPnl)} USDT
 
 <div class="performance-row">
 
-<span>İşlem</span>
+<span>
+İşlem
+</span>
 
-<b>${shorts.length}</b>
+<b>
+${shorts.length}
+</b>
 
 </div>
 
 
 <div class="performance-row">
 
-<span>Kazanan</span>
+<span>
+Kazanan
+</span>
 
 <b class="performance-positive">
 
@@ -3692,15 +3848,17 @@ ${shortWins.length}
 
 <div class="performance-row">
 
-<span>Win Rate</span>
+<span>
+Win Rate
+</span>
 
 <b class="${
-    shortWinRate>=50
+    shortRate>=50
         ?'performance-positive'
         :'performance-negative'
 }">
 
-${shortWinRate.toFixed(1)}%
+${shortRate.toFixed(1)}%
 
 </b>
 
@@ -3709,7 +3867,9 @@ ${shortWinRate.toFixed(1)}%
 
 <div class="performance-row">
 
-<span>Toplam PNL</span>
+<span>
+Toplam PNL
+</span>
 
 <b class="${
     shortPnl>=0
@@ -3717,7 +3877,9 @@ ${shortWinRate.toFixed(1)}%
         :'performance-negative'
 }">
 
-${shortPnl>=0?'+':''}${fmt(shortPnl)} USDT
+${shortPnl>=0?'+':''}
+${fmt(shortPnl)}
+USDT
 
 </b>
 
@@ -3730,11 +3892,26 @@ ${shortPnl>=0?'+':''}${fmt(shortPnl)} USDT
 
 <div class="performance-title">
 
-📊 SİNYAL SKORU BAŞARISI
+📈 İŞLEM PNL GRAFİĞİ
 
 </div>
 
-${scoreHtml}
+<div class="performance-chart">
+
+<div class="chart-bars">
+
+${chartBars}
+
+</div>
+
+</div>
+
+<div class="performance-note">
+
+Her çubuk bir kapanmış paper işlemini temsil eder.
+Yeşil kazanç, kırmızı kayıp işlemdir.
+
+</div>
 
 </div>
 
@@ -3747,7 +3924,30 @@ ${scoreHtml}
 
 </div>
 
-${reasonsHtml}
+${
+    Object.entries(reasons)
+        .sort(
+            (a,b)=>b[1]-a[1]
+        )
+        .map(
+            ([reason,count])=>`
+
+<div class="performance-row">
+
+<span>
+${escapeHtml(reason)}
+</span>
+
+<b>
+${count}
+</b>
+
+</div>
+
+`
+        )
+        .join('')
+}
 
 </div>
 
@@ -3756,7 +3956,6 @@ ${reasonsHtml}
 
 `;
 }
-
 
 /* =========================================================
    AYARLAR
@@ -3830,10 +4029,10 @@ function clearHistory(){
         'paperHistory'
     );
 
-
-    renderHistory();
-
-    renderTradeStats();
+renderHistory();
+renderTradeStats();
+renderHistoryStats();
+renderPerformance();
 
 
     alert(
