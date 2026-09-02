@@ -1168,13 +1168,14 @@ function showView(v){
     currentView=v;
 
 
-    [
-        'scan',
-        'markets',
-        'trade',
-        'history',
-        'settings'
-    ].forEach(x=>{
+  [
+    'scan',
+    'markets',
+    'trade',
+    'history',
+    'performance',
+    'settings'
+].forEach(x=>{
 
         const el=
             $(x+'View');
@@ -1210,6 +1211,9 @@ function showView(v){
 
     if(v==='history')
         renderHistory();
+
+    if(v==='performance')
+        renderPerformance();
 
 
     if(v==='settings'){
@@ -2998,6 +3002,750 @@ ${fmt(s.totalPnl)} USDT
 +${fmt(s.best)}
 </b>
 </div>
+
+</div>
+
+`;
+}
+
+
+/* =========================
+   V8.2 PERFORMANS / İSTATİSTİK
+========================= */
+
+function renderPerformance(){
+
+    const el=$('performanceContent');
+
+    if(!el)return;
+
+
+    const history=getPaperHistory();
+
+
+    /*
+     Sadece gerçekten kapanmış
+     işlemleri kullan.
+    */
+
+    const closed=
+        history.filter(
+            x=>
+                x &&
+                (
+                    x.status==='Kapalı' ||
+                    x.status==='Closed'
+                )
+        );
+
+
+    if(!closed.length){
+
+        el.innerHTML=`
+
+<div class="performance-empty">
+
+📊 Henüz tamamlanmış işlem yok.
+
+<br><br>
+
+İlk paper işlemini kapattığında
+istatistikler burada görünecek.
+
+</div>
+
+`;
+
+        return;
+    }
+
+
+    const total=closed.length;
+
+
+    const winners=
+        closed.filter(
+            x=>n(x.pnl)>0
+        );
+
+
+    const losers=
+        closed.filter(
+            x=>n(x.pnl)<0
+        );
+
+
+    const breakeven=
+        closed.filter(
+            x=>n(x.pnl)===0
+        );
+
+
+    const winRate=
+        total
+            ?winners.length/total*100
+            :0;
+
+
+    const totalPnl=
+        closed.reduce(
+            (sum,x)=>
+                sum+n(x.pnl),
+            0
+        );
+
+
+    const grossProfit=
+        winners.reduce(
+            (sum,x)=>
+                sum+n(x.pnl),
+            0
+        );
+
+
+    const grossLoss=
+        losers.reduce(
+            (sum,x)=>
+                sum+n(x.pnl),
+            0
+        );
+
+
+    const avgWin=
+        winners.length
+            ?grossProfit/winners.length
+            :0;
+
+
+    const avgLoss=
+        losers.length
+            ?grossLoss/losers.length
+            :0;
+
+
+    const profitFactor=
+        grossLoss<0
+            ?grossProfit/Math.abs(grossLoss)
+            :grossProfit>0
+                ?Infinity
+                :0;
+
+
+    const best=
+        [...closed].sort(
+            (a,b)=>
+                n(b.pnl)-n(a.pnl)
+        )[0];
+
+
+    const worst=
+        [...closed].sort(
+            (a,b)=>
+                n(a.pnl)-n(b.pnl)
+        )[0];
+
+
+    /*
+     LONG / SHORT
+    */
+
+    const longs=
+        closed.filter(
+            x=>x.side==='LONG'
+        );
+
+
+    const shorts=
+        closed.filter(
+            x=>x.side==='SHORT'
+        );
+
+
+    const longWins=
+        longs.filter(
+            x=>n(x.pnl)>0
+        );
+
+
+    const shortWins=
+        shorts.filter(
+            x=>n(x.pnl)>0
+        );
+
+
+    const longPnl=
+        longs.reduce(
+            (sum,x)=>
+                sum+n(x.pnl),
+            0
+        );
+
+
+    const shortPnl=
+        shorts.reduce(
+            (sum,x)=>
+                sum+n(x.pnl),
+            0
+        );
+
+
+    const longWinRate=
+        longs.length
+            ?longWins.length/longs.length*100
+            :0;
+
+
+    const shortWinRate=
+        shorts.length
+            ?shortWins.length/shorts.length*100
+            :0;
+
+
+    /*
+     SİNYAL SKORU
+
+     Eski işlemlerde score yoksa
+     "—" altında bırakılır.
+    */
+
+    const scored=
+        closed.filter(
+            x=>
+                Number.isFinite(
+                    Number(x.score)
+                )
+        );
+
+
+    const scoreBuckets=[
+
+        {
+            name:'80–100',
+            min:80,
+            max:100
+        },
+
+        {
+            name:'70–79',
+            min:70,
+            max:79
+        },
+
+        {
+            name:'65–69',
+            min:65,
+            max:69
+        },
+
+        {
+            name:'55–64',
+            min:55,
+            max:64
+        },
+
+        {
+            name:'0–54',
+            min:0,
+            max:54
+        }
+
+    ];
+
+
+    const scoreStats=
+        scoreBuckets.map(bucket=>{
+
+            const rows=
+                scored.filter(
+                    x=>{
+                        const s=n(x.score);
+
+                        return(
+                            s>=bucket.min&&
+                            s<=bucket.max
+                        );
+                    }
+                );
+
+
+            const wins=
+                rows.filter(
+                    x=>n(x.pnl)>0
+                ).length;
+
+
+            return{
+
+                ...bucket,
+
+                count:rows.length,
+
+                wins,
+
+                rate:
+                    rows.length
+                        ?wins/rows.length*100
+                        :0
+            };
+
+        });
+
+
+    /*
+     KAPANIŞ NEDENLERİ
+    */
+
+    const closeReasons={};
+
+
+    closed.forEach(x=>{
+
+        const reason=
+            x.closeReason||
+            'MANUEL';
+
+
+        closeReasons[reason]=
+            (closeReasons[reason]||0)+1;
+
+    });
+
+
+    const pnlClass=
+        totalPnl>=0
+            ?'performance-positive'
+            :'performance-negative';
+
+
+    const bestClass=
+        n(best?.pnl)>=0
+            ?'performance-positive'
+            :'performance-negative';
+
+
+    const worstClass=
+        n(worst?.pnl)>=0
+            ?'performance-positive'
+            :'performance-negative';
+
+
+    let scoreHtml='';
+
+
+    if(scored.length){
+
+        scoreHtml=
+            scoreStats.map(s=>`
+
+<div class="performance-row">
+
+<span>
+
+<b>${s.name}</b>
+
+<br>
+
+<span class="muted">
+
+${s.count} işlem
+•
+${s.wins} kazanan
+
+</span>
+
+</span>
+
+
+<span
+class="${
+    s.rate>=60
+        ?'performance-positive'
+        :s.rate>=50
+        ?'performance-neutral'
+        :'performance-negative'
+}">
+
+${s.count
+    ?s.rate.toFixed(1)+'%'
+    :'—'}
+
+</span>
+
+</div>
+
+`).join('');
+
+    }else{
+
+        scoreHtml=`
+
+<div class="performance-empty">
+
+Geçmiş işlemlerde sinyal skoru
+kaydı bulunmuyor.
+
+Yeni işlemler V8.2 ile skor bilgisi
+kaydetmeye başlayacak.
+
+</div>
+
+`;
+
+    }
+
+
+    const reasonsHtml=
+        Object.entries(closeReasons)
+            .sort(
+                (a,b)=>b[1]-a[1]
+            )
+            .map(
+                ([reason,count])=>`
+
+<div class="performance-row">
+
+<span>${reason}</span>
+
+<b>${count}</b>
+
+</div>
+
+`
+            )
+            .join('');
+
+
+    el.innerHTML=`
+
+<div class="performance-grid">
+
+
+<div class="performance-card">
+
+<span>TOPLAM İŞLEM</span>
+
+<b>${total}</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>WIN RATE</span>
+
+<b class="${
+    winRate>=50
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${winRate.toFixed(1)}%
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>🏆 KAZANAN</span>
+
+<b class="performance-positive">
+
+${winners.length}
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>⚠ KAYBEDEN</span>
+
+<b class="performance-negative">
+
+${losers.length}
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>BERABERE</span>
+
+<b class="performance-neutral">
+
+${breakeven.length}
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>PROFIT FACTOR</span>
+
+<b>
+
+${
+    Number.isFinite(profitFactor)
+        ?profitFactor.toFixed(2)
+        :'∞'
+}
+
+</b>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<span>💰 TOPLAM PNL</span>
+
+<b class="${pnlClass}">
+
+${totalPnl>=0?'+':''}${fmt(totalPnl)} USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>📈 ORTALAMA KAZANÇ</span>
+
+<b class="performance-positive">
+
+${avgWin>=0?'+':''}${fmt(avgWin)} USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card">
+
+<span>📉 ORTALAMA KAYIP</span>
+
+<b class="performance-negative">
+
+${avgLoss>=0?'+':''}${fmt(avgLoss)} USDT
+
+</b>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<span>🏆 EN İYİ İŞLEM</span>
+
+<b class="performance-positive">
+
+${best?.symbol||'—'}
+
+</b>
+
+<div class="muted">
+
+${best?.side||'—'}
+
+•
+
+${n(best?.pnl)>=0?'+':''}${fmt(best?.pnl)} USDT
+
+</div>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<span>⚠ EN KÖTÜ İŞLEM</span>
+
+<b class="${worstClass}">
+
+${worst?.symbol||'—'}
+
+</b>
+
+<div class="muted">
+
+${worst?.side||'—'}
+
+•
+
+${n(worst?.pnl)>=0?'+':''}${fmt(worst?.pnl)} USDT
+
+</div>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<div class="performance-title">
+
+🟢 LONG PERFORMANSI
+
+</div>
+
+
+<div class="performance-row">
+
+<span>İşlem</span>
+
+<b>${longs.length}</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Kazanan</span>
+
+<b class="performance-positive">
+
+${longWins.length}
+
+</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Win Rate</span>
+
+<b class="${
+    longWinRate>=50
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${longWinRate.toFixed(1)}%
+
+</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Toplam PNL</span>
+
+<b class="${
+    longPnl>=0
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${longPnl>=0?'+':''}${fmt(longPnl)} USDT
+
+</b>
+
+</div>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<div class="performance-title">
+
+🔴 SHORT PERFORMANSI
+
+</div>
+
+
+<div class="performance-row">
+
+<span>İşlem</span>
+
+<b>${shorts.length}</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Kazanan</span>
+
+<b class="performance-positive">
+
+${shortWins.length}
+
+</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Win Rate</span>
+
+<b class="${
+    shortWinRate>=50
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${shortWinRate.toFixed(1)}%
+
+</b>
+
+</div>
+
+
+<div class="performance-row">
+
+<span>Toplam PNL</span>
+
+<b class="${
+    shortPnl>=0
+        ?'performance-positive'
+        :'performance-negative'
+}">
+
+${shortPnl>=0?'+':''}${fmt(shortPnl)} USDT
+
+</b>
+
+</div>
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<div class="performance-title">
+
+📊 SİNYAL SKORU BAŞARISI
+
+</div>
+
+${scoreHtml}
+
+</div>
+
+
+<div class="performance-card performance-wide">
+
+<div class="performance-title">
+
+🚪 KAPANIŞ NEDENLERİ
+
+</div>
+
+${reasonsHtml}
+
+</div>
+
 
 </div>
 
