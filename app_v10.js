@@ -4624,3 +4624,1253 @@ function initV10(){
 ========================================================= */
 
 initV10();
+
+/* =========================================================
+   V10.1 AUTO ENGINE
+   Güvenli otomatik işlem altyapısı
+   ========================================================= */
+
+(function(){
+
+    "use strict";
+
+    const AUTO_ENGINE_KEY = "fss_v101_auto_engine";
+
+    const DEFAULT_AUTO_CONFIG = {
+        enabled: false,
+
+        // İlk aşamada sadece PAPER.
+        mode: "PAPER",
+
+        minScore: 70,
+
+        riskPercent: 1.0,
+
+        maxRiskPercent: 3.0,
+
+        maxOpenPositions: 1,
+
+        maxDailyLossPercent: 3.0,
+
+        allowLong: true,
+
+        allowShort: true,
+
+        tp1Percent: 50,
+
+        tp2Percent: 25,
+
+        tp3Percent: 25,
+
+        breakEvenAfterTP1: true,
+
+        trailingEnabled: true,
+
+        trailingPercent: 0.5,
+
+        sameSymbolCooldownMinutes: 30,
+
+        killSwitch: false
+    };
+
+
+    let autoConfig =
+        loadAutoConfig();
+
+
+    let autoState = {
+
+        running: false,
+
+        dayStartEquity: null,
+
+        dailyPnL: 0,
+
+        openedToday: 0,
+
+        closedToday: 0,
+
+        lastSignalTime: {},
+
+        lastAction: "Hazır",
+
+        lastError: null
+    };
+
+
+    /* =====================================================
+       CONFIG
+    ===================================================== */
+
+    function loadAutoConfig(){
+
+        try{
+
+            const saved =
+                localStorage.getItem(AUTO_ENGINE_KEY);
+
+            if(saved){
+
+                return {
+                    ...DEFAULT_AUTO_CONFIG,
+                    ...JSON.parse(saved)
+                };
+
+            }
+
+        }catch(err){
+
+            console.warn(
+                "Auto Engine ayarları okunamadı:",
+                err
+            );
+
+        }
+
+        return {
+            ...DEFAULT_AUTO_CONFIG
+        };
+    }
+
+
+    function saveAutoConfig(){
+
+        try{
+
+            localStorage.setItem(
+                AUTO_ENGINE_KEY,
+                JSON.stringify(autoConfig)
+            );
+
+        }catch(err){
+
+            console.warn(
+                "Auto Engine ayarları kaydedilemedi:",
+                err
+            );
+
+        }
+    }
+
+
+    /* =====================================================
+       YARDIMCI
+    ===================================================== */
+
+    function num(value, fallback = 0){
+
+        const n = Number(value);
+
+        return Number.isFinite(n)
+            ? n
+            : fallback;
+    }
+
+
+    function now(){
+
+        return Date.now();
+
+    }
+
+
+    function todayKey(){
+
+        return new Date()
+            .toISOString()
+            .slice(0,10);
+
+    }
+
+
+    function getOpenAutoPositions(){
+
+        try{
+
+            if(
+                typeof getOpenPosition ===
+                "function"
+            ){
+
+                const p =
+                    getOpenPosition();
+
+                return p ? [p] : [];
+
+            }
+
+        }catch(err){
+
+            console.warn(
+                "Açık pozisyon okunamadı:",
+                err
+            );
+
+        }
+
+        return [];
+
+    }
+
+
+    function getRows(){
+
+        /*
+         * V10 tarama motorunun farklı isimlendirmelerine
+         * uyum sağlamaya çalışıyoruz.
+         */
+
+        if(
+            typeof rows !== "undefined" &&
+            Array.isArray(rows)
+        ){
+
+            return rows;
+
+        }
+
+        if(
+            typeof signalRows !== "undefined" &&
+            Array.isArray(signalRows)
+        ){
+
+            return signalRows;
+
+        }
+
+        if(
+            typeof scanRows !== "undefined" &&
+            Array.isArray(scanRows)
+        ){
+
+            return scanRows;
+
+        }
+
+        return [];
+
+    }
+
+
+    function normalizeSide(signal){
+
+        const raw =
+            String(
+                signal?.side ||
+                signal?.direction ||
+                ""
+            ).toUpperCase();
+
+        if(
+            raw === "LONG" ||
+            raw === "BUY"
+        ){
+
+            return "LONG";
+
+        }
+
+        if(
+            raw === "SHORT" ||
+            raw === "SELL"
+        ){
+
+            return "SHORT";
+
+        }
+
+        return null;
+
+    }
+
+
+    function getScore(signal){
+
+        return num(
+            signal?.score ??
+            signal?.technicalScore ??
+            signal?.strength,
+            0
+        );
+
+    }
+
+
+    function getSymbol(signal){
+
+        return String(
+            signal?.symbol ||
+            signal?.coin ||
+            signal?.s ||
+            ""
+        ).toUpperCase();
+
+    }
+
+
+    /* =====================================================
+       RİSK KONTROLÜ
+    ===================================================== */
+
+    function calculateRisk(){
+
+        const risk =
+            num(
+                autoConfig.riskPercent,
+                1
+            );
+
+        const maxRisk =
+            num(
+                autoConfig.maxRiskPercent,
+                3
+            );
+
+        return Math.min(
+            Math.max(risk, 0.1),
+            maxRisk
+        );
+
+    }
+
+
+    function riskAllowed(){
+
+        const risk =
+            calculateRisk();
+
+        if(
+            risk >
+            num(
+                autoConfig.maxRiskPercent,
+                3
+            )
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    "Maksimum işlem riski aşıldı."
+            };
+
+        }
+
+        if(
+            autoState.dailyPnL <=
+            -Math.abs(
+                num(
+                    autoConfig.maxDailyLossPercent,
+                    3
+                )
+            )
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    "Günlük maksimum zarar limiti aşıldı."
+            };
+
+        }
+
+        return {
+            ok:true,
+            risk
+        };
+
+    }
+
+
+    /* =====================================================
+       SİNYAL KONTROLÜ
+    ===================================================== */
+
+    function signalAllowed(signal){
+
+        if(!signal){
+
+            return {
+                ok:false,
+                reason:"Sinyal yok."
+            };
+
+        }
+
+
+        if(autoConfig.killSwitch){
+
+            return {
+                ok:false,
+                reason:"KILL SWITCH aktif."
+            };
+
+        }
+
+
+        if(!autoConfig.enabled){
+
+            return {
+                ok:false,
+                reason:
+                    "Otomatik işlem kapalı."
+            };
+
+        }
+
+
+        const side =
+            normalizeSide(signal);
+
+
+        if(!side){
+
+            return {
+                ok:false,
+                reason:
+                    "LONG/SHORT yönü bulunamadı."
+            };
+
+        }
+
+
+        if(
+            side === "LONG" &&
+            !autoConfig.allowLong
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    "LONG işlemler kapalı."
+            };
+
+        }
+
+
+        if(
+            side === "SHORT" &&
+            !autoConfig.allowShort
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    "SHORT işlemler kapalı."
+            };
+
+        }
+
+
+        const score =
+            getScore(signal);
+
+
+        if(
+            score <
+            num(
+                autoConfig.minScore,
+                70
+            )
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    `Skor düşük: ${score}`
+            };
+
+        }
+
+
+        const positions =
+            getOpenAutoPositions();
+
+
+        if(
+            positions.length >=
+            num(
+                autoConfig.maxOpenPositions,
+                1
+            )
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    "Maksimum açık pozisyon sayısına ulaşıldı."
+            };
+
+        }
+
+
+        const symbol =
+            getSymbol(signal);
+
+
+        if(!symbol){
+
+            return {
+                ok:false,
+                reason:
+                    "Coin sembolü bulunamadı."
+            };
+
+        }
+
+
+        const last =
+            num(
+                autoState.lastSignalTime[symbol],
+                0
+            );
+
+
+        const cooldown =
+            num(
+                autoConfig.sameSymbolCooldownMinutes,
+                30
+            ) *
+            60 *
+            1000;
+
+
+        if(
+            last &&
+            now() - last <
+            cooldown
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    `${symbol} cooldown süresinde.`
+            };
+
+        }
+
+
+        const risk =
+            riskAllowed();
+
+
+        if(!risk.ok){
+
+            return risk;
+
+        }
+
+
+        return {
+
+            ok:true,
+
+            side,
+
+            symbol,
+
+            score,
+
+            risk:risk.risk
+        };
+
+    }
+
+
+    /* =====================================================
+       PAPER POZİSYON AÇILIŞI
+    ===================================================== */
+
+    function openAutoPaper(signal){
+
+        const check =
+            signalAllowed(signal);
+
+
+        if(!check.ok){
+
+            autoState.lastAction =
+                check.reason;
+
+            return {
+                ok:false,
+                reason:check.reason
+            };
+
+        }
+
+
+        const symbol =
+            check.symbol;
+
+
+        /*
+         * Mevcut V10 işlem formundaki değerleri
+         * mümkün olduğunca kullanıyoruz.
+         */
+
+        const entry =
+            num(
+                signal?.price ??
+                signal?.entry,
+                0
+            );
+
+
+        const sl =
+            num(
+                signal?.sl ??
+                signal?.stopLoss,
+                0
+            );
+
+
+        const tp1 =
+            num(
+                signal?.tp1,
+                0
+            );
+
+
+        const tp2 =
+            num(
+                signal?.tp2,
+                0
+            );
+
+
+        const tp3 =
+            num(
+                signal?.tp3,
+                0
+            );
+
+
+        if(
+            !entry ||
+            !sl ||
+            !tp1 ||
+            !tp2 ||
+            !tp3
+        ){
+
+            return {
+                ok:false,
+                reason:
+                    `${symbol}: Entry/SL/TP bilgileri eksik.`
+            };
+
+        }
+
+
+        /*
+         * Mevcut V10 savePaperTrade()
+         * fonksiyonunu kullanıyoruz.
+         */
+
+        try{
+
+            if(
+                typeof setTradeFormFromSignal ===
+                "function"
+            ){
+
+                setTradeFormFromSignal(signal);
+
+            }
+
+
+            if(
+                typeof populateTradeForm ===
+                "function"
+            ){
+
+                populateTradeForm(signal);
+
+            }
+
+
+            if(
+                typeof savePaperTrade ===
+                "function"
+            ){
+
+                savePaperTrade();
+
+                autoState.lastSignalTime[symbol] =
+                    now();
+
+                autoState.openedToday++;
+
+                autoState.lastAction =
+                    `${symbol} ${check.side} PAPER açıldı.`;
+
+                return {
+                    ok:true,
+                    mode:"PAPER",
+                    symbol,
+                    side:check.side
+                };
+
+            }
+
+
+            return {
+                ok:false,
+                reason:
+                    "savePaperTrade() bulunamadı."
+            };
+
+        }catch(err){
+
+            autoState.lastError =
+                err?.message ||
+                String(err);
+
+            return {
+                ok:false,
+                reason:
+                    autoState.lastError
+            };
+
+        }
+
+    }
+
+
+    /* =====================================================
+       EN İYİ SİNYAL
+    ===================================================== */
+
+    function findBestSignal(){
+
+        const list =
+            getRows();
+
+
+        if(
+            !Array.isArray(list) ||
+            !list.length
+        ){
+
+            return null;
+
+        }
+
+
+        const candidates =
+            list
+            .filter(Boolean)
+            .map(signal => {
+
+                return {
+
+                    signal,
+
+                    side:
+                        normalizeSide(signal),
+
+                    score:
+                        getScore(signal),
+
+                    symbol:
+                        getSymbol(signal)
+                };
+
+            })
+            .filter(x => {
+
+                if(!x.side){
+
+                    return false;
+
+                }
+
+                if(
+                    x.score <
+                    num(
+                        autoConfig.minScore,
+                        70
+                    )
+                ){
+
+                    return false;
+
+                }
+
+                if(
+                    x.side === "LONG" &&
+                    !autoConfig.allowLong
+                ){
+
+                    return false;
+
+                }
+
+                if(
+                    x.side === "SHORT" &&
+                    !autoConfig.allowShort
+                ){
+
+                    return false;
+
+                }
+
+                return !!x.symbol;
+
+            });
+
+
+        candidates.sort(
+            (a,b) =>
+                b.score - a.score
+        );
+
+
+        return candidates.length
+            ? candidates[0].signal
+            : null;
+
+    }
+
+
+    /* =====================================================
+       AUTO SCAN
+    ===================================================== */
+
+    function autoScanTick(){
+
+        if(!autoConfig.enabled){
+
+            return;
+
+        }
+
+
+        if(autoConfig.killSwitch){
+
+            return;
+
+        }
+
+
+        if(
+            autoConfig.mode !==
+            "PAPER"
+        ){
+
+            /*
+             * TESTNET/LIVE gerçek emir katmanı
+             * backend bağlantısı kurulana kadar
+             * burada özellikle emir göndermiyoruz.
+             */
+
+            autoState.lastAction =
+                `Mod ${autoConfig.mode}: emir motoru hazır değil.`;
+
+            return;
+
+        }
+
+
+        const signal =
+            findBestSignal();
+
+
+        if(!signal){
+
+            return;
+
+        }
+
+
+        const result =
+            openAutoPaper(signal);
+
+
+        if(!result.ok){
+
+            console.log(
+                "Auto Engine:",
+                result.reason
+            );
+
+        }else{
+
+            console.log(
+                "Auto Engine:",
+                result
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       START / STOP
+    ===================================================== */
+
+    function startAutoEngine(){
+
+        autoConfig.enabled =
+            true;
+
+        autoConfig.killSwitch =
+            false;
+
+        autoState.running =
+            true;
+
+        autoState.lastAction =
+            "Auto Engine aktif.";
+
+        saveAutoConfig();
+
+        console.log(
+            "V10.1 Auto Engine başlatıldı."
+        );
+
+        renderAutoPanel();
+
+    }
+
+
+    function stopAutoEngine(){
+
+        autoConfig.enabled =
+            false;
+
+        autoState.running =
+            false;
+
+        autoState.lastAction =
+            "Auto Engine durduruldu.";
+
+        saveAutoConfig();
+
+        console.log(
+            "V10.1 Auto Engine durduruldu."
+        );
+
+        renderAutoPanel();
+
+    }
+
+
+    function activateKillSwitch(){
+
+        autoConfig.enabled =
+            false;
+
+        autoConfig.killSwitch =
+            true;
+
+        autoState.running =
+            false;
+
+        autoState.lastAction =
+            "🛑 KILL SWITCH AKTİF";
+
+        saveAutoConfig();
+
+        renderAutoPanel();
+
+        alert(
+            "🛑 KILL SWITCH AKTİF\n\nYeni otomatik işlemler durduruldu."
+        );
+
+    }
+
+
+    /* =====================================================
+       PANEL
+    ===================================================== */
+
+    function renderAutoPanel(){
+
+        let panel =
+            document.getElementById(
+                "autoEnginePanel"
+            );
+
+
+        if(!panel){
+
+            const settingsView =
+                document.getElementById(
+                    "settingsView"
+                );
+
+
+            if(!settingsView){
+
+                return;
+
+            }
+
+
+            panel =
+                document.createElement(
+                    "div"
+                );
+
+
+            panel.id =
+                "autoEnginePanel";
+
+            panel.className =
+                "panel";
+
+
+            settingsView
+                .querySelector(".panel")
+                .appendChild(panel);
+
+        }
+
+
+        const enabled =
+            autoConfig.enabled &&
+            !autoConfig.killSwitch;
+
+
+        panel.innerHTML = `
+
+            <h2>🤖 Otomatik İşlem Motoru</h2>
+
+            <div class="muted">
+                V10.1 Auto Engine
+            </div>
+
+            <div class="grid">
+
+                <div class="box">
+
+                    <span>Durum</span>
+
+                    <b class="${enabled ? "green" : "red"}">
+
+                        ${
+                            autoConfig.killSwitch
+                            ? "🛑 KILL SWITCH"
+                            : enabled
+                            ? "🟢 AKTİF"
+                            : "🔴 KAPALI"
+                        }
+
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>Mod</span>
+
+                    <b>
+                        ${autoConfig.mode}
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>Min. skor</span>
+
+                    <b>
+                        ${autoConfig.minScore}
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>Risk / işlem</span>
+
+                    <b>
+                        ${autoConfig.riskPercent}%
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>Açık pozisyon limiti</span>
+
+                    <b>
+                        ${autoConfig.maxOpenPositions}
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>Günlük zarar limiti</span>
+
+                    <b>
+                        ${autoConfig.maxDailyLossPercent}%
+                    </b>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="primary"
+                onclick="window.FSSAuto.start()">
+
+                ${
+                    enabled
+                    ? "⏸ Otomatik İşlemi Durdur"
+                    : "▶ Otomatik İşlemi Başlat"
+                }
+
+            </button>
+
+
+            <button
+                class="secondary"
+                onclick="window.FSSAuto.kill()">
+
+                🛑 KILL SWITCH
+
+            </button>
+
+
+            <div class="calc">
+
+                <b>Motor:</b>
+                ${autoState.lastAction}
+
+                ${
+                    autoState.lastError
+                    ? `<br><span class="red">
+                        Hata: ${autoState.lastError}
+                       </span>`
+                    : ""
+                }
+
+            </div>
+
+
+            <div class="note">
+
+                İlk aşamada yalnızca PAPER modunda çalışır.
+                TESTNET ve LIVE emirleri backend bağlantısı
+                tamamlanmadan gönderilmez.
+
+            </div>
+        `;
+
+    }
+
+
+    /* =====================================================
+       CONFIG API
+    ===================================================== */
+
+    function setConfig(values){
+
+        if(!values){
+
+            return;
+
+        }
+
+
+        autoConfig = {
+            ...autoConfig,
+            ...values
+        };
+
+
+        saveAutoConfig();
+
+        renderAutoPanel();
+
+    }
+
+
+    /* =====================================================
+       PUBLIC API
+    ===================================================== */
+
+    window.FSSAuto = {
+
+        start:
+            startAutoEngine,
+
+        stop:
+            stopAutoEngine,
+
+        kill:
+            activateKillSwitch,
+
+        scan:
+            autoScanTick,
+
+        config:
+            () => ({
+                ...autoConfig
+            }),
+
+        setConfig,
+
+        state:
+            () => ({
+                ...autoState
+            }),
+
+        render:
+            renderAutoPanel
+
+    };
+
+
+    /* =====================================================
+       TIMER
+    ===================================================== */
+
+    setInterval(
+        autoScanTick,
+        5000
+    );
+
+
+    /* =====================================================
+       INIT
+    ===================================================== */
+
+    function initAutoEngine(){
+
+        renderAutoPanel();
+
+        console.log(
+            "V10.1 Auto Engine hazır."
+        );
+
+    }
+
+
+    if(
+        document.readyState ===
+        "loading"
+    ){
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            initAutoEngine
+        );
+
+    }else{
+
+        initAutoEngine();
+
+    }
+
+})();
