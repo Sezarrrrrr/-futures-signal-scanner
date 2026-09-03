@@ -4593,4 +4593,34 @@ function initV9(){
    BAŞLAT
    ========================================================= */
 
-initV9();
+
+
+/* =========================================================
+   V10 BAŞLANGIÇ
+========================================================= */
+
+function initV10(){
+    initV9();
+
+    console.log("Futures Signal Scanner V10 başlatıldı.");
+
+    // V10 Paper Trading başlangıç kontrolleri
+    renderHistory();
+    renderPerformance();
+
+    // İşlem formu mevcut sinyalle doldurulabiliyorsa
+    // mevcut V9 verisini kullan
+    if (typeof populateTradeCoins === "function") {
+        populateTradeCoins();
+    }
+
+    if (typeof updateTradeCalculator === "function") {
+        updateTradeCalculator();
+    }
+}
+
+/* =========================================================
+   TEK BAŞLANGIÇ NOKTASI
+========================================================= */
+
+initV10();
