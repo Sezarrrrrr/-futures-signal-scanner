@@ -5874,3 +5874,2302 @@ initV10();
     }
 
 })();
+
+
+/* =========================================================
+   V10.2 AUTO ENGINE CORE
+   ---------------------------------------------------------
+   Amaç:
+   - Gerçek V9/V10 "signals" dizisine bağlanmak
+   - En güçlü geçerli sinyali seçmek
+   - PAPER otomatik işlem açmak
+   - Risk kontrolü
+   - Maksimum açık pozisyon kontrolü
+   - Günlük zarar limiti
+   - Aynı coin cooldown
+   - LONG / SHORT izinleri
+   - Kill Switch
+   - Motor durumunu görünür tutmak
+   ---------------------------------------------------------
+   NOT:
+   TESTNET / LIVE emir göndermez.
+   Bu sürüm yalnızca PAPER çalışır.
+========================================================= */
+
+(function(){
+
+    "use strict";
+
+    console.log(
+        "V10.2 Auto Engine Core yükleniyor..."
+    );
+
+
+    /* =====================================================
+       V10.2 AYAR ANAHTARI
+    ===================================================== */
+
+    const V102_KEY =
+        "fss_v102_auto_engine";
+
+
+    /* =====================================================
+       VARSAYILAN AYARLAR
+    ===================================================== */
+
+    const V102_DEFAULTS = {
+
+        enabled:false,
+
+        mode:"PAPER",
+
+        minScore:70,
+
+        riskPercent:1,
+
+        maxRiskPercent:3,
+
+        maxOpenPositions:1,
+
+        maxDailyLossPercent:3,
+
+        allowLong:true,
+
+        allowShort:true,
+
+        sameSymbolCooldownMinutes:30,
+
+        capital:100,
+
+        leverage:5,
+
+        cooldownAfterLossMinutes:15,
+
+        requireConfirmation:false,
+
+        killSwitch:false
+
+    };
+
+
+    /* =====================================================
+       AYARLARI YÜKLE
+    ===================================================== */
+
+    function loadV102(){
+
+        try{
+
+            const raw =
+                localStorage.getItem(V102_KEY);
+
+            if(raw){
+
+                return {
+
+                    ...V102_DEFAULTS,
+
+                    ...JSON.parse(raw)
+
+                };
+
+            }
+
+        }catch(error){
+
+            console.warn(
+                "V10.2 ayarları okunamadı:",
+                error
+            );
+
+        }
+
+        return {
+            ...V102_DEFAULTS
+        };
+
+    }
+
+
+    let cfg =
+        loadV102();
+
+
+    /* =====================================================
+       MOTOR DURUMU
+    ===================================================== */
+
+    const state = {
+
+        running:false,
+
+        lastAction:"Hazır",
+
+        lastError:null,
+
+        lastSymbol:null,
+
+        lastSide:null,
+
+        lastScore:null,
+
+        lastOpenAt:null,
+
+        blockedReason:null,
+
+        totalAutoOpened:0,
+
+        totalBlocked:0
+
+    };
+
+
+    /* =====================================================
+       YARDIMCI
+    ===================================================== */
+
+    function number(value,fallback=0){
+
+        const n =
+            Number(value);
+
+        return Number.isFinite(n)
+            ? n
+            : fallback;
+
+    }
+
+
+    function getSignals(){
+
+        /*
+         * V9/V10 tarama motorunun gerçek
+         * sinyal dizisi:
+         *
+         * signals
+         */
+
+        try{
+
+            if(
+                typeof signals !== "undefined" &&
+                Array.isArray(signals)
+            ){
+
+                return signals;
+
+            }
+
+        }catch(error){
+
+            console.warn(
+                "signals okunamadı:",
+                error
+            );
+
+        }
+
+        return [];
+
+    }
+
+
+    function getSymbol(signal){
+
+        return String(
+
+            signal?.symbol ??
+            signal?.coin ??
+            signal?.s ??
+            ""
+
+        ).toUpperCase();
+
+    }
+
+
+    function getSide(signal){
+
+        const raw =
+            String(
+
+                signal?.side ??
+                signal?.direction ??
+                ""
+
+            ).toUpperCase();
+
+
+        if(
+            raw === "LONG" ||
+            raw === "BUY"
+        ){
+
+            return "LONG";
+
+        }
+
+
+        if(
+            raw === "SHORT" ||
+            raw === "SELL"
+        ){
+
+            return "SHORT";
+
+        }
+
+
+        return null;
+
+    }
+
+
+    function getScore(signal){
+
+        return number(
+
+            signal?.score ??
+            signal?.technicalScore ??
+            signal?.strength,
+
+            0
+
+        );
+
+    }
+
+
+    function getTickerPrice(symbol){
+
+        try{
+
+            if(
+                typeof tickers !== "undefined" &&
+                tickers &&
+                typeof tickers.get === "function"
+            ){
+
+                const ticker =
+                    tickers.get(symbol);
+
+                return number(
+                    ticker?.c,
+                    0
+                );
+
+            }
+
+        }catch(_){}
+
+        return 0;
+
+    }
+
+
+    /* =====================================================
+       AÇIK POZİSYON
+    ===================================================== */
+
+    function getOpenPositionSafe(){
+
+        try{
+
+            if(
+                typeof getOpenPosition ===
+                "function"
+            ){
+
+                return getOpenPosition();
+
+            }
+
+        }catch(error){
+
+            console.warn(
+                "Açık pozisyon kontrolü:",
+                error
+            );
+
+        }
+
+        return null;
+
+    }
+
+
+    function hasOpenPosition(){
+
+        return !!getOpenPositionSafe();
+
+    }
+
+
+    /* =====================================================
+       GEÇMİŞ
+    ===================================================== */
+
+    function getHistorySafe(){
+
+        try{
+
+            if(
+                typeof getHistory ===
+                "function"
+            ){
+
+                const h =
+                    getHistory();
+
+                return Array.isArray(h)
+                    ? h
+                    : [];
+
+            }
+
+        }catch(_){}
+
+        try{
+
+            const raw =
+                localStorage.getItem(
+                    "paperHistory"
+                );
+
+            if(raw){
+
+                const parsed =
+                    JSON.parse(raw);
+
+                return Array.isArray(parsed)
+                    ? parsed
+                    : [];
+
+            }
+
+        }catch(_){}
+
+        return [];
+
+    }
+
+
+    /* =====================================================
+       BUGÜNKÜ PNL
+    ===================================================== */
+
+    function getTodayPnL(){
+
+        const history =
+            getHistorySafe();
+
+        const now =
+            new Date();
+
+        const year =
+            now.getFullYear();
+
+        const month =
+            now.getMonth();
+
+        const day =
+            now.getDate();
+
+
+        return history.reduce(
+
+            (sum,item)=>{
+
+                if(!item)
+                    return sum;
+
+
+                const rawDate =
+                    item.closedAt ??
+                    item.openedAt ??
+                    item.createdAt;
+
+
+                if(!rawDate)
+                    return sum;
+
+
+                const d =
+                    new Date(rawDate);
+
+
+                if(
+                    d.getFullYear() === year &&
+                    d.getMonth() === month &&
+                    d.getDate() === day
+                ){
+
+                    return sum +
+                        number(
+                            item.pnl,
+                            0
+                        );
+
+                }
+
+
+                return sum;
+
+            },
+
+            0
+
+        );
+
+    }
+
+
+    /* =====================================================
+       GÜNLÜK ZARAR KONTROLÜ
+    ===================================================== */
+
+    function dailyLossAllowed(){
+
+        const capital =
+            Math.max(
+                number(cfg.capital,100),
+                1
+            );
+
+
+        const maxLossPct =
+            Math.max(
+                number(
+                    cfg.maxDailyLossPercent,
+                    3
+                ),
+                0
+            );
+
+
+        const maxLoss =
+            capital *
+            maxLossPct /
+            100;
+
+
+        const todayPnL =
+            getTodayPnL();
+
+
+        if(
+            todayPnL <= -maxLoss
+        ){
+
+            state.blockedReason =
+                "Günlük zarar limiti aşıldı.";
+
+            state.totalBlocked++;
+
+            return false;
+
+        }
+
+
+        return true;
+
+    }
+
+
+    /* =====================================================
+       RİSK KONTROLÜ
+    ===================================================== */
+
+    function riskAllowed(){
+
+        const risk =
+            number(
+                cfg.riskPercent,
+                1
+            );
+
+
+        const maxRisk =
+            number(
+                cfg.maxRiskPercent,
+                3
+            );
+
+
+        if(risk <= 0){
+
+            state.blockedReason =
+                "Risk yüzdesi 0 veya daha düşük.";
+
+            state.totalBlocked++;
+
+            return false;
+
+        }
+
+
+        if(risk > maxRisk){
+
+            state.blockedReason =
+                "İşlem riski maksimum risk limitini aşıyor.";
+
+            state.totalBlocked++;
+
+            return false;
+
+        }
+
+
+        return true;
+
+    }
+
+
+    /* =====================================================
+       AYNI COIN COOLDOWN
+    ===================================================== */
+
+    function getLastTradeTime(symbol){
+
+        const history =
+            getHistorySafe();
+
+
+        let latest = 0;
+
+
+        history.forEach(item=>{
+
+            if(
+                String(
+                    item?.symbol ??
+                    ""
+                ).toUpperCase()
+                !== symbol
+            ){
+
+                return;
+
+            }
+
+
+            const t =
+                new Date(
+
+                    item.closedAt ??
+                    item.openedAt ??
+                    item.createdAt ??
+                    0
+
+                ).getTime();
+
+
+            if(
+                Number.isFinite(t) &&
+                t > latest
+            ){
+
+                latest = t;
+
+            }
+
+        });
+
+
+        return latest;
+
+    }
+
+
+    function cooldownAllowed(symbol){
+
+        const minutes =
+            Math.max(
+                number(
+                    cfg.sameSymbolCooldownMinutes,
+                    30
+                ),
+                0
+            );
+
+
+        if(minutes === 0)
+            return true;
+
+
+        const last =
+            getLastTradeTime(symbol);
+
+
+        if(!last)
+            return true;
+
+
+        const elapsed =
+            Date.now() -
+            last;
+
+
+        const wait =
+            minutes *
+            60 *
+            1000;
+
+
+        if(elapsed < wait){
+
+            const remain =
+                Math.ceil(
+                    (
+                        wait -
+                        elapsed
+                    ) /
+                    60000
+                );
+
+
+            state.blockedReason =
+                `${symbol} cooldown aktif. `+
+                `${remain} dk kaldı.`;
+
+            state.totalBlocked++;
+
+            return false;
+
+        }
+
+
+        return true;
+
+    }
+
+
+    /* =====================================================
+       SİNYAL TEYİDİ
+    ===================================================== */
+
+    function confirmationAllowed(signal){
+
+        if(!cfg.requireConfirmation)
+            return true;
+
+
+        const confirmation =
+            String(
+                signal?.confirmation ??
+                ""
+            ).toUpperCase();
+
+
+        const aligned =
+            signal?.alignedLong ||
+            signal?.alignedShort;
+
+
+        if(
+            confirmation.includes("TEYİT") ||
+            confirmation.includes("CONFIRM") ||
+            aligned === true
+        ){
+
+            return true;
+
+        }
+
+
+        state.blockedReason =
+            "Sinyal teyit şartını karşılamıyor.";
+
+        state.totalBlocked++;
+
+        return false;
+
+    }
+
+
+    /* =====================================================
+       EN İYİ SİNYAL
+    ===================================================== */
+
+    function findBestSignal(){
+
+        const list =
+            getSignals();
+
+
+        if(!list.length){
+
+            state.blockedReason =
+                "Henüz geçerli sinyal yok.";
+
+            return null;
+
+        }
+
+
+        const candidates =
+
+            list
+
+            .filter(Boolean)
+
+            .map(signal=>{
+
+                return {
+
+                    signal,
+
+                    symbol:
+                        getSymbol(signal),
+
+                    side:
+                        getSide(signal),
+
+                    score:
+                        getScore(signal)
+
+                };
+
+            })
+
+            .filter(item=>{
+
+                if(!item.symbol)
+                    return false;
+
+
+                if(!item.side)
+                    return false;
+
+
+                if(
+                    item.score <
+                    number(
+                        cfg.minScore,
+                        70
+                    )
+                ){
+
+                    return false;
+
+                }
+
+
+                if(
+                    item.side === "LONG" &&
+                    !cfg.allowLong
+                ){
+
+                    return false;
+
+                }
+
+
+                if(
+                    item.side === "SHORT" &&
+                    !cfg.allowShort
+                ){
+
+                    return false;
+
+                }
+
+
+                if(
+                    !confirmationAllowed(
+                        item.signal
+                    )
+                ){
+
+                    return false;
+
+                }
+
+
+                return true;
+
+            });
+
+
+        candidates.sort(
+
+            (a,b)=>{
+
+                /*
+                 * Önce skor.
+                 * Eşitlikte teyit edilmiş sinyal
+                 * öne alınır.
+                 */
+
+                const scoreDiff =
+                    b.score -
+                    a.score;
+
+
+                if(scoreDiff !== 0)
+                    return scoreDiff;
+
+
+                const aConfirm =
+                    a.signal?.alignedLong ||
+                    a.signal?.alignedShort
+                    ? 1
+                    : 0;
+
+
+                const bConfirm =
+                    b.signal?.alignedLong ||
+                    b.signal?.alignedShort
+                    ? 1
+                    : 0;
+
+
+                return bConfirm -
+                       aConfirm;
+
+            }
+
+        );
+
+
+        return candidates.length
+            ? candidates[0].signal
+            : null;
+
+    }
+
+
+    /* =====================================================
+       SİNYALDEN FORMU DOLDUR
+    ===================================================== */
+
+    function fillTradeForm(signal){
+
+        const symbol =
+            getSymbol(signal);
+
+
+        const side =
+            getSide(signal);
+
+
+        const entry =
+            number(
+                signal?.entry,
+                0
+            );
+
+
+        const sl =
+            number(
+                signal?.sl,
+                0
+            );
+
+
+        const tp1 =
+            number(
+                signal?.tp1,
+                0
+            );
+
+
+        const tp2 =
+            number(
+                signal?.tp2,
+                0
+            );
+
+
+        const tp3 =
+            number(
+                signal?.tp3,
+                0
+            );
+
+
+        const price =
+            entry ||
+            getTickerPrice(symbol);
+
+
+        const coin =
+            document.getElementById(
+                "tradeCoin"
+            );
+
+
+        const sideEl =
+            document.getElementById(
+                "tradeSide"
+            );
+
+
+        const levEl =
+            document.getElementById(
+                "tradeLev"
+            );
+
+
+        const entryEl =
+            document.getElementById(
+                "tradeEntry"
+            );
+
+
+        const capitalEl =
+            document.getElementById(
+                "tradeCapital"
+            );
+
+
+        const slEl =
+            document.getElementById(
+                "tradeSL"
+            );
+
+
+        const tp1El =
+            document.getElementById(
+                "tradeTP1"
+            );
+
+
+        const tp2El =
+            document.getElementById(
+                "tradeTP2"
+            );
+
+
+        const tp3El =
+            document.getElementById(
+                "tradeTP3"
+            );
+
+
+        if(coin){
+
+            /*
+             * Coin select mevcutsa önce
+             * option oluşturmayı deniyoruz.
+             */
+
+            let found = false;
+
+
+            for(
+                let i=0;
+                i<coin.options.length;
+                i++
+            ){
+
+                if(
+                    coin.options[i].value ===
+                    symbol
+                ){
+
+                    coin.selectedIndex =
+                        i;
+
+                    found = true;
+
+                    break;
+
+                }
+
+            }
+
+
+            if(!found){
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value =
+                    symbol;
+
+                option.textContent =
+                    symbol;
+
+                coin.appendChild(option);
+
+                coin.value =
+                    symbol;
+
+            }
+
+        }
+
+
+        if(sideEl && side){
+
+            sideEl.value =
+                side;
+
+        }
+
+
+        if(
+            levEl &&
+            number(cfg.leverage,5) > 0
+        ){
+
+            levEl.value =
+                String(
+                    number(
+                        cfg.leverage,
+                        5
+                    )
+                );
+
+        }
+
+
+        if(entryEl){
+
+            entryEl.value =
+                price || "";
+
+        }
+
+
+        if(capitalEl){
+
+            capitalEl.value =
+                number(
+                    cfg.capital,
+                    100
+                );
+
+        }
+
+
+        if(slEl){
+
+            slEl.value =
+                sl || "";
+
+        }
+
+
+        if(tp1El){
+
+            tp1El.value =
+                tp1 || "";
+
+        }
+
+
+        if(tp2El){
+
+            tp2El.value =
+                tp2 || "";
+
+        }
+
+
+        if(tp3El){
+
+            tp3El.value =
+                tp3 || "";
+
+        }
+
+
+        /*
+         * Mevcut hesaplama fonksiyonunu
+         * varsa çalıştır.
+         */
+
+        try{
+
+            if(
+                typeof calcTrade ===
+                "function"
+            ){
+
+                calcTrade();
+
+            }
+
+        }catch(_){}
+
+
+        return {
+
+            symbol,
+
+            side,
+
+            entry:
+                price,
+
+            sl,
+
+            tp1,
+
+            tp2,
+
+            tp3
+
+        };
+
+    }
+
+
+    /* =====================================================
+       OTOMATİK PAPER AÇ
+    ===================================================== */
+
+    function openPaper(signal){
+
+        const symbol =
+            getSymbol(signal);
+
+
+        const side =
+            getSide(signal);
+
+
+        if(!symbol || !side){
+
+            state.blockedReason =
+                "Sinyal coin/yön bilgisi eksik.";
+
+            state.totalBlocked++;
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        if(
+            hasOpenPosition()
+        ){
+
+            state.blockedReason =
+                "Zaten açık bir PAPER pozisyon var.";
+
+            state.totalBlocked++;
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        if(
+            number(
+                cfg.maxOpenPositions,
+                1
+            ) <= 0
+        ){
+
+            state.blockedReason =
+                "Maksimum açık pozisyon limiti 0.";
+
+            state.totalBlocked++;
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        if(!riskAllowed()){
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        if(!dailyLossAllowed()){
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        if(
+            !cooldownAllowed(symbol)
+        ){
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        const form =
+            fillTradeForm(signal);
+
+
+        if(
+            !form.entry ||
+            !form.sl ||
+            !form.tp1
+        ){
+
+            state.blockedReason =
+                `${symbol} için giriş / SL / TP1 bilgisi eksik.`;
+
+            state.totalBlocked++;
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.blockedReason
+
+            };
+
+        }
+
+
+        /*
+         * savePaperTrade() mevcut V9/V10
+         * motorunun PAPER kayıt fonksiyonudur.
+         */
+
+        try{
+
+            if(
+                typeof savePaperTrade !==
+                "function"
+            ){
+
+                throw new Error(
+                    "savePaperTrade() bulunamadı."
+                );
+
+            }
+
+
+            savePaperTrade();
+
+
+            /*
+             * İşlem gerçekten açıldı mı?
+             */
+
+            const opened =
+                getOpenPositionSafe();
+
+
+            if(!opened){
+
+                state.blockedReason =
+                    "Paper işlem oluşturulamadı.";
+
+                state.totalBlocked++;
+
+                return {
+
+                    ok:false,
+
+                    reason:
+                        state.blockedReason
+
+                };
+
+            }
+
+
+            state.lastSymbol =
+                symbol;
+
+            state.lastSide =
+                side;
+
+            state.lastScore =
+                getScore(signal);
+
+            state.lastOpenAt =
+                Date.now();
+
+            state.lastAction =
+                `${symbol} ${side} PAPER açıldı • `+
+                `Skor ${getScore(signal)}/100`;
+
+            state.lastError =
+                null;
+
+            state.blockedReason =
+                null;
+
+            state.totalAutoOpened++;
+
+
+            renderStatus();
+
+
+            return {
+
+                ok:true,
+
+                symbol,
+
+                side,
+
+                score:
+                    getScore(signal)
+
+            };
+
+        }catch(error){
+
+            state.lastError =
+                error?.message ??
+                String(error);
+
+
+            state.lastAction =
+                "Otomatik PAPER açılışında hata.";
+
+
+            state.totalBlocked++;
+
+
+            renderStatus();
+
+
+            return {
+
+                ok:false,
+
+                reason:
+                    state.lastError
+
+            };
+
+        }
+
+    }
+
+
+    /* =====================================================
+       ANA MOTOR
+    ===================================================== */
+
+    function tick(){
+
+        if(!cfg.enabled){
+
+            state.running =
+                false;
+
+            return;
+
+        }
+
+
+        if(cfg.killSwitch){
+
+            state.running =
+                false;
+
+            state.lastAction =
+                "🛑 KILL SWITCH aktif.";
+
+            renderStatus();
+
+            return;
+
+        }
+
+
+        if(
+            String(cfg.mode).toUpperCase()
+            !== "PAPER"
+        ){
+
+            state.running =
+                true;
+
+            state.lastAction =
+                `Mod ${cfg.mode}: `+
+                "V10.2 yalnızca PAPER çalıştırıyor.";
+
+            renderStatus();
+
+            return;
+
+        }
+
+
+        state.running =
+            true;
+
+
+        /*
+         * Aynı anda yalnızca belirlenen
+         * maksimum açık pozisyon sayısı.
+         *
+         * Mevcut PAPER altyapısı tek pozisyon
+         * tuttuğu için burada ikinci işlem
+         * açılmasını kesin olarak engelliyoruz.
+         */
+
+        if(
+            hasOpenPosition()
+        ){
+
+            state.lastAction =
+                "Açık PAPER pozisyon mevcut. "+
+                "Yeni işlem beklemede.";
+
+            renderStatus();
+
+            return;
+
+        }
+
+
+        const signal =
+            findBestSignal();
+
+
+        if(!signal){
+
+            state.lastAction =
+                state.blockedReason ||
+                "Uygun sinyal bekleniyor.";
+
+            renderStatus();
+
+            return;
+
+        }
+
+
+        const result =
+            openPaper(signal);
+
+
+        if(!result.ok){
+
+            state.lastAction =
+                result.reason ||
+                "İşlem açılmadı.";
+
+        }
+
+
+        renderStatus();
+
+    }
+
+
+    /* =====================================================
+       DURUM PANELİ
+    ===================================================== */
+
+    function renderStatus(){
+
+        const panel =
+            document.getElementById(
+                "autoEnginePanel"
+            );
+
+
+        if(!panel)
+            return;
+
+
+        const statusBox =
+            panel.querySelector(
+                ".v102-status"
+            );
+
+
+        if(statusBox){
+
+            let text;
+
+
+            if(cfg.killSwitch){
+
+                text =
+                    "🛑 KILL SWITCH";
+
+            }else if(cfg.enabled){
+
+                text =
+                    state.running
+                    ? "🟢 AKTİF"
+                    : "🟡 BEKLEMEDE";
+
+            }else{
+
+                text =
+                    "🔴 KAPALI";
+
+            }
+
+
+            statusBox.textContent =
+                text;
+
+        }
+
+
+        const actionBox =
+            panel.querySelector(
+                ".v102-action"
+            );
+
+
+        if(actionBox){
+
+            actionBox.textContent =
+                state.lastAction;
+
+        }
+
+
+        const errorBox =
+            panel.querySelector(
+                ".v102-error"
+            );
+
+
+        if(errorBox){
+
+            errorBox.textContent =
+                state.lastError
+                    ? "Hata: " +
+                      state.lastError
+                    : "";
+
+        }
+
+
+        const openedBox =
+            panel.querySelector(
+                ".v102-opened"
+            );
+
+
+        if(openedBox){
+
+            openedBox.textContent =
+                String(
+                    state.totalAutoOpened
+                );
+
+        }
+
+
+        const blockedBox =
+            panel.querySelector(
+                ".v102-blocked"
+            );
+
+
+        if(blockedBox){
+
+            blockedBox.textContent =
+                String(
+                    state.totalBlocked
+                );
+
+        }
+
+
+        const pnlBox =
+            panel.querySelector(
+                ".v102-pnl"
+            );
+
+
+        if(pnlBox){
+
+            const pnl =
+                getTodayPnL();
+
+
+            pnlBox.textContent =
+                (
+                    pnl >= 0
+                    ? "+"
+                    : ""
+                ) +
+                pnl.toFixed(2) +
+                " USDT";
+
+        }
+
+    }
+
+
+    /* =====================================================
+       PANEL OLUŞTUR
+    ===================================================== */
+
+    function renderPanel(){
+
+        const settingsView =
+            document.getElementById(
+                "settingsView"
+            );
+
+
+        if(!settingsView)
+            return;
+
+
+        let panel =
+            document.getElementById(
+                "autoEnginePanel"
+            );
+
+
+        if(!panel){
+
+            const parent =
+                settingsView.querySelector(
+                    ".panel"
+                );
+
+
+            if(!parent)
+                return;
+
+
+            panel =
+                document.createElement(
+                    "div"
+                );
+
+
+            panel.id =
+                "autoEnginePanel";
+
+
+            panel.className =
+                "panel";
+
+
+            parent.appendChild(
+                panel
+            );
+
+        }
+
+
+        panel.innerHTML = `
+
+            <h2>
+                🤖 Otomatik İşlem Motoru
+            </h2>
+
+            <div class="muted">
+                V10.2 Auto Engine Core • PAPER
+            </div>
+
+
+            <div class="grid">
+
+                <div class="box">
+
+                    <span>
+                        Durum
+                    </span>
+
+                    <b
+                        class="v102-status">
+                        —
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Mod
+                    </span>
+
+                    <b>
+                        ${cfg.mode}
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Minimum skor
+                    </span>
+
+                    <b>
+                        ${cfg.minScore}
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Risk / işlem
+                    </span>
+
+                    <b>
+                        ${cfg.riskPercent}%
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Max günlük zarar
+                    </span>
+
+                    <b>
+                        ${cfg.maxDailyLossPercent}%
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Cooldown
+                    </span>
+
+                    <b>
+                        ${cfg.sameSymbolCooldownMinutes} dk
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Otomatik açılan
+                    </span>
+
+                    <b
+                        class="v102-opened">
+                        0
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Engellenen
+                    </span>
+
+                    <b
+                        class="v102-blocked">
+                        0
+                    </b>
+
+                </div>
+
+
+                <div class="box">
+
+                    <span>
+                        Bugünkü PNL
+                    </span>
+
+                    <b
+                        class="v102-pnl">
+                        0.00 USDT
+                    </b>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="primary"
+                id="v102StartBtn">
+
+                ${
+                    cfg.enabled
+                    ? "⏸ Otomatik İşlemi Durdur"
+                    : "▶ Otomatik İşlemi Başlat"
+                }
+
+            </button>
+
+
+            <button
+                class="secondary"
+                id="v102KillBtn">
+
+                🛑 KILL SWITCH
+
+            </button>
+
+
+            <div
+                class="calc">
+
+                <b>
+                    Motor:
+                </b>
+
+                <span
+                    class="v102-action">
+                    ${state.lastAction}
+                </span>
+
+                <br>
+
+                <span
+                    class="red v102-error">
+                    ${
+                        state.lastError
+                        ? "Hata: " +
+                          state.lastError
+                        : ""
+                    }
+                </span>
+
+            </div>
+
+
+            <div class="note">
+
+                V10.2 yalnızca PAPER işlem açar.
+                Gerçek Binance emri göndermez.
+                Yeni işlem yalnızca risk,
+                günlük zarar, cooldown,
+                yön ve skor kontrollerinden
+                geçerse açılır.
+
+            </div>
+
+        `;
+
+
+        const start =
+            document.getElementById(
+                "v102StartBtn"
+            );
+
+
+        if(start){
+
+            start.onclick =
+                function(){
+
+                    if(cfg.enabled){
+
+                        stop();
+
+                    }else{
+
+                        start();
+
+                    }
+
+                };
+
+        }
+
+
+        const kill =
+            document.getElementById(
+                "v102KillBtn"
+            );
+
+
+        if(kill){
+
+            kill.onclick =
+                function(){
+
+                    killSwitch();
+
+                };
+
+        }
+
+
+        renderStatus();
+
+    }
+
+
+    /* =====================================================
+       START
+    ===================================================== */
+
+    function start(){
+
+        cfg.enabled =
+            true;
+
+        cfg.killSwitch =
+            false;
+
+
+        state.running =
+            true;
+
+        state.lastError =
+            null;
+
+        state.blockedReason =
+            null;
+
+        state.lastAction =
+            "V10.2 Auto Engine aktif.";
+
+
+        save();
+
+
+        renderPanel();
+
+
+        /*
+         * Başlangıçta hemen bir tarama.
+         */
+
+        tick();
+
+    }
+
+
+    /* =====================================================
+       STOP
+    ===================================================== */
+
+    function stop(){
+
+        cfg.enabled =
+            false;
+
+
+        state.running =
+            false;
+
+
+        state.lastAction =
+            "V10.2 Auto Engine durduruldu.";
+
+
+        save();
+
+
+        renderPanel();
+
+    }
+
+
+    /* =====================================================
+       KILL SWITCH
+    ===================================================== */
+
+    function killSwitch(){
+
+        cfg.enabled =
+            false;
+
+
+        cfg.killSwitch =
+            true;
+
+
+        state.running =
+            false;
+
+
+        state.lastAction =
+            "🛑 KILL SWITCH AKTİF.";
+
+
+        save();
+
+
+        renderPanel();
+
+
+        try{
+
+            alert(
+                "🛑 V10.2 KILL SWITCH AKTİF\n\n"+
+                "Yeni otomatik PAPER işlemleri durduruldu."
+            );
+
+        }catch(_){}
+
+    }
+
+
+    /* =====================================================
+       AYAR KAYDET
+    ===================================================== */
+
+    function save(){
+
+        try{
+
+            localStorage.setItem(
+
+                V102_KEY,
+
+                JSON.stringify(cfg)
+
+            );
+
+        }catch(error){
+
+            console.warn(
+                "V10.2 ayarları kaydedilemedi:",
+                error
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       PUBLIC API
+    ===================================================== */
+
+    window.FSSAutoV102 = {
+
+        start,
+
+        stop,
+
+        killSwitch,
+
+        tick,
+
+        render:
+            renderPanel,
+
+        config(){
+
+            return {
+                ...cfg
+            };
+
+        },
+
+        state(){
+
+            return {
+                ...state
+            };
+
+        },
+
+        setConfig(values){
+
+            if(!values)
+                return;
+
+
+            cfg = {
+
+                ...cfg,
+
+                ...values
+
+            };
+
+
+            /*
+             * Güvenlik sınırları
+             */
+
+            cfg.riskPercent =
+                Math.max(
+                    number(
+                        cfg.riskPercent,
+                        1
+                    ),
+                    0.1
+                );
+
+
+            cfg.maxRiskPercent =
+                Math.max(
+                    number(
+                        cfg.maxRiskPercent,
+                        3
+                    ),
+                    0.1
+                );
+
+
+            if(
+                cfg.riskPercent >
+                cfg.maxRiskPercent
+            ){
+
+                cfg.riskPercent =
+                    cfg.maxRiskPercent;
+
+            }
+
+
+            cfg.minScore =
+                Math.min(
+                    Math.max(
+                        number(
+                            cfg.minScore,
+                            70
+                        ),
+                        50
+                    ),
+                    100
+                );
+
+
+            cfg.maxDailyLossPercent =
+                Math.max(
+                    number(
+                        cfg.maxDailyLossPercent,
+                        3
+                    ),
+                    0
+                );
+
+
+            cfg.sameSymbolCooldownMinutes =
+                Math.max(
+                    number(
+                        cfg.sameSymbolCooldownMinutes,
+                        30
+                    ),
+                    0
+                );
+
+
+            save();
+
+            renderPanel();
+
+        }
+
+    };
+
+
+    /* =====================================================
+       5 SANİYELİK MOTOR TICK
+    ===================================================== */
+
+    setInterval(
+
+        function(){
+
+            try{
+
+                tick();
+
+            }catch(error){
+
+                state.lastError =
+                    error?.message ??
+                    String(error);
+
+                renderStatus();
+
+            }
+
+        },
+
+        5000
+
+    );
+
+
+    /* =====================================================
+       BAŞLAT
+    ===================================================== */
+
+    function initV102(){
+
+        renderPanel();
+
+
+        console.log(
+            "V10.2 Auto Engine Core hazır."
+        );
+
+    }
+
+
+    if(
+        document.readyState ===
+        "loading"
+    ){
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            initV102
+
+        );
+
+    }else{
+
+        initV102();
+
+    }
+
+
+})();
