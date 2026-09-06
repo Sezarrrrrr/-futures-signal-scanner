@@ -1802,63 +1802,135 @@ Pozisyon notional:
 
 
 /* =========================================================
-   PAPER İŞLEM AÇ
-   ========================================================= */
+   V10.4 PAPER İŞLEM AÇ
+   ---------------------------------------------------------
+   Sermaye → Notional → Quantity zincirini garanti eder.
+========================================================= */
 
 function savePaperTrade(){
 
-    const symbol=$('tradeCoin')?.value;
+    const symbol =
+        $('tradeCoin')?.value;
 
-    const signal=
+
+    const signal =
         signals.find(
-            x=>x.symbol===symbol
+            x => x.symbol === symbol
         );
 
-    const side=$('tradeSide')?.value;
 
-    const entry=n($('tradeEntry')?.value);
+    const side =
+        $('tradeSide')?.value;
 
-    const sl=n($('tradeSL')?.value);
 
-    const tp1=n($('tradeTP1')?.value);
+    const entry =
+        n($('tradeEntry')?.value);
 
-    const tp2=n($('tradeTP2')?.value);
 
-    const tp3=n($('tradeTP3')?.value);
+    const sl =
+        n($('tradeSL')?.value);
 
-    const lev=n($('tradeLev')?.value);
 
-    const capital=n($('tradeCapital')?.value);
+    const tp1 =
+        n($('tradeTP1')?.value);
+
+
+    const tp2Input =
+        n($('tradeTP2')?.value);
+
+
+    const tp3Input =
+        n($('tradeTP3')?.value);
+
+
+    const lev =
+        n($('tradeLev')?.value);
+
+
+    /*
+     * Sermaye alanını doğrudan input'tan al.
+     * Boş / geçersiz değerleri 0 kabul et.
+     */
+    const capitalInput =
+        $('tradeCapital')?.value;
+
+
+    const capital =
+        Number(
+            String(capitalInput ?? '')
+                .replace(',', '.')
+        );
+
+
+    /* =====================================================
+       TEMEL KONTROLLER
+    ===================================================== */
+
+    if(!symbol){
+
+        alert(
+            'Lütfen coin seç.'
+        );
+
+        return;
+    }
+
+
+    if(!entry || entry <= 0){
+
+        alert(
+            'Geçerli bir giriş fiyatı gir.'
+        );
+
+        return;
+    }
+
+
+    if(!sl || sl <= 0){
+
+        alert(
+            'Geçerli bir Stop Loss gir.'
+        );
+
+        return;
+    }
+
+
+    if(!tp1 || tp1 <= 0){
+
+        alert(
+            'Geçerli bir TP1 gir.'
+        );
+
+        return;
+    }
+
+
+    if(!lev || lev <= 0){
+
+        alert(
+            'Geçerli bir kaldıraç seç.'
+        );
+
+        return;
+    }
+
+
+    if(!Number.isFinite(capital) || capital <= 0){
+
+        alert(
+            'Sermaye değeri geçersiz. '+
+            'Örneğin 100 USDT gir.'
+        );
+
+        return;
+    }
 
 
     if(
-        !symbol||
-        !entry||
-        !sl||
-        !tp1||
-        !capital
+        side!=='LONG' &&
+        side!=='SHORT'
     ){
-
-        alert(
-            'Lütfen işlem bilgilerini tamamla.'
-        );
-
-        return;
-    }
-
-
-    if(getOpenPosition()){
-
-        alert(
-            'Zaten açık bir paper pozisyon var. '+
-            'Önce mevcut pozisyonu kapat.'
-        );
-
-        return;
-    }
-
-
-    if(side!=='LONG'&&side!=='SHORT'){
 
         alert(
             'İşlem yönü LONG veya SHORT olmalı.'
@@ -1868,39 +1940,127 @@ function savePaperTrade(){
     }
 
 
-    const ticker=tickers.get(symbol);
+    /* =====================================================
+       TEK AÇIK POZİSYON KONTROLÜ
+    ===================================================== */
 
-    const currentPrice=
-        n(ticker?.c)||entry;
+    if(getOpenPosition()){
+
+        alert(
+            'Zaten açık bir paper pozisyon var.\n\n'+
+            'Önce mevcut pozisyonu kapat.'
+        );
+
+        return;
+    }
 
 
-    const position={
+    /* =====================================================
+       GÜNCEL FİYAT
+    ===================================================== */
+
+    const ticker =
+        tickers.get(symbol);
+
+
+    const currentPrice =
+        n(ticker?.c) ||
+        entry;
+
+
+    /* =====================================================
+       NOTIONAL
+    ===================================================== */
+
+    const notional =
+        capital * lev;
+
+
+    /* =====================================================
+       POZİSYON MİKTARI
+       -----------------------------------------------------
+       Quantity = Notional / Entry
+    ===================================================== */
+
+    const initialQuantity =
+        notional / entry;
+
+
+    const quantity =
+        initialQuantity;
+
+
+    /* =====================================================
+       TP2 / TP3 OTOMATİK HESAP
+    ===================================================== */
+
+    const tpDistance =
+        Math.abs(
+            tp1 - entry
+        );
+
+
+    const tp2 =
+        tp2Input > 0
+            ? tp2Input
+            : (
+                side === 'LONG'
+                    ? entry + tpDistance * 2
+                    : entry - tpDistance * 2
+            );
+
+
+    const tp3 =
+        tp3Input > 0
+            ? tp3Input
+            : (
+                side === 'LONG'
+                    ? entry + tpDistance * 3
+                    : entry - tpDistance * 3
+            );
+
+
+    /* =====================================================
+       V10.4 POSITION
+    ===================================================== */
+
+    const position = {
 
         id:
-            Date.now()+
+            Date.now() +
             '-' +
             Math.random()
                 .toString(36)
                 .slice(2,8),
 
+
         symbol,
+
 
         side,
 
+
         score:
             signal
-                ?n(signal.score)
-                :null,
+                ? n(signal.score)
+                : null,
+
 
         confirmation:
             signal
-                ?signal.confirmation
-                :'',
+                ? signal.confirmation
+                : '',
+
 
         quality:
             signal
-                ?signal.quality
-                :'',
+                ? signal.quality
+                : '',
+
+
+        /* -------------------------------------------------
+           FİYATLAR
+        ------------------------------------------------- */
 
         entry,
 
@@ -1910,61 +2070,84 @@ function savePaperTrade(){
 
         tp1,
 
-        tp2:
-            tp2||
-            (
-                side==='LONG'
-                    ?entry+
-                        Math.abs(tp1-entry)*2
-                    :entry-
-                        Math.abs(tp1-entry)*2
-            ),
+        tp2,
 
-        tp3:
-            tp3||
-            (
-                side==='LONG'
-                    ?entry+
-                        Math.abs(tp1-entry)*3
-                    :entry-
-                        Math.abs(tp1-entry)*3
-            ),
+        tp3,
+
+
+        /* -------------------------------------------------
+           SERMAYE / NOTIONAL
+        ------------------------------------------------- */
+
+        capital,
 
         lev,
-notional:
-    capital*lev,
 
-/*
- * V10.4 Position Manager
- * Başlangıç pozisyon miktarı.
- */
-initialQuantity:
-    entry > 0
-        ? (capital * lev) / entry
-        : 0,
+        notional,
 
-quantity:
-    entry > 0
-        ? (capital * lev) / entry
-        : 0,
 
-tp1Hit:false,
-tp2Hit:false,
-tp3Hit:false,
+        /* -------------------------------------------------
+           MİKTAR
+        ------------------------------------------------- */
 
-breakEven:false,
-trailingActive:false,
+        initialQuantity,
 
-realizedPNL:0,
-grossPNL:0,
-commission:0,
+        quantity,
 
-events:[],
 
-openedAt:
-    new Date().toISOString(),
+        /* -------------------------------------------------
+           TP DURUMLARI
+        ------------------------------------------------- */
+
+        tp1Hit:false,
+
+        tp2Hit:false,
+
+        tp3Hit:false,
+
+
+        /* -------------------------------------------------
+           RİSK YÖNETİMİ
+        ------------------------------------------------- */
+
+        breakEven:false,
+
+        trailingActive:false,
+
+
+        /* -------------------------------------------------
+           PNL
+        ------------------------------------------------- */
+
+        realizedPNL:0,
+
+        grossPNL:0,
+
+        commission:0,
+
+
+        /* -------------------------------------------------
+           OLAYLAR
+        ------------------------------------------------- */
+
+        events:[],
+
+
+        /* -------------------------------------------------
+           DURUM
+        ------------------------------------------------- */
+
+        openedAt:
+            new Date()
+                .toISOString(),
+
 
         status:'Açık',
+
+
+        /* -------------------------------------------------
+           PNL TAKİBİ
+        ------------------------------------------------- */
 
         maxPnl:0,
 
@@ -1972,27 +2155,145 @@ openedAt:
 
         lastPnl:0,
 
-        updatedAt:Date.now()
+
+        updatedAt:
+            Date.now()
+
     };
 
 
-    saveOpenPosition(position);
+    /* =====================================================
+       SON GÜVENLİK KONTROLÜ
+    ===================================================== */
 
+    if(
+        !Number.isFinite(position.capital) ||
+        position.capital <= 0
+    ){
+
+        alert(
+            'Pozisyon oluşturulamadı: '+
+            'sermaye değeri geçersiz.'
+        );
+
+        return;
+    }
+
+
+    if(
+        !Number.isFinite(position.notional) ||
+        position.notional <= 0
+    ){
+
+        alert(
+            'Pozisyon oluşturulamadı: '+
+            'notional değeri geçersiz.'
+        );
+
+        return;
+    }
+
+
+    if(
+        !Number.isFinite(position.quantity) ||
+        position.quantity <= 0
+    ){
+
+        alert(
+            'Pozisyon oluşturulamadı: '+
+            'pozisyon miktarı hesaplanamadı.'
+        );
+
+        return;
+    }
+
+
+    /* =====================================================
+       KAYDET
+    ===================================================== */
+
+    saveOpenPosition(
+        position
+    );
+
+
+    /* =====================================================
+       EKRAN
+    ===================================================== */
 
     renderOpenPosition();
+
     renderHistory();
+
     renderTradeStats();
 
 
-    showView('trade');
+    showView(
+        'trade'
+    );
+
+
+    /* =====================================================
+       KONSOL KONTROLÜ
+    ===================================================== */
+
+    console.log(
+        'V10.4 PAPER POSITION:',
+        {
+            symbol:
+                position.symbol,
+
+            side:
+                position.side,
+
+            capital:
+                position.capital,
+
+            leverage:
+                position.lev,
+
+            notional:
+                position.notional,
+
+            entry:
+                position.entry,
+
+            initialQuantity:
+                position.initialQuantity,
+
+            quantity:
+                position.quantity
+        }
+    );
 
 
     alert(
-        'Paper pozisyon açıldı.\n\n'+
+        'Paper pozisyon açıldı.\n\n' +
+
+        'Coin: ' +
+        position.symbol +
+        '\n' +
+
+        'Yön: ' +
+        position.side +
+        '\n' +
+
+        'Sermaye: ' +
+        position.capital.toFixed(2) +
+        ' USDT\n' +
+
+        'Notional: ' +
+        position.notional.toFixed(2) +
+        ' USDT\n' +
+
+        'Miktar: ' +
+        position.quantity.toFixed(6) +
+        '\n\n' +
+
         'Gerçek emir gönderilmedi.'
     );
-}
 
+}
 
 /* =========================================================
    V10.4 PNL HESAPLAMA
