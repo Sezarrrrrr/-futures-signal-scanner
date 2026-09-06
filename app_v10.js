@@ -1931,14 +1931,38 @@ function savePaperTrade(){
             ),
 
         lev,
+notional:
+    capital*lev,
 
-        capital,
+/*
+ * V10.4 Position Manager
+ * Başlangıç pozisyon miktarı.
+ */
+initialQuantity:
+    entry > 0
+        ? (capital * lev) / entry
+        : 0,
 
-        notional:
-            capital*lev,
+quantity:
+    entry > 0
+        ? (capital * lev) / entry
+        : 0,
 
-        openedAt:
-            new Date().toISOString(),
+tp1Hit:false,
+tp2Hit:false,
+tp3Hit:false,
+
+breakEven:false,
+trailingActive:false,
+
+realizedPNL:0,
+grossPNL:0,
+commission:0,
+
+events:[],
+
+openedAt:
+    new Date().toISOString(),
 
         status:'Açık',
 
