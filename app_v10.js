@@ -1393,70 +1393,421 @@ function getOpenPosition(){
 }
 
 
+/* =========================================================
+   V10.4 POSITION NORMALIZER
+   ---------------------------------------------------------
+   V9 + V10 + V10.4 alanlarını korur.
+   Pozisyon okunurken V10 alanlarının kaybolmasını engeller.
+========================================================= */
+
 function normalizePosition(p){
+
+    if(!p || !p.symbol)
+        return null;
+
+
+    const entry =
+        n(p.entry);
+
+
+    const lev =
+        n(p.lev) || 1;
+
+
+    const capital =
+        n(p.capital);
+
+
+    const notional =
+        n(p.notional) ||
+        (
+            capital > 0
+                ? capital * lev
+                : 0
+        );
+
+
+    /*
+     * V10.4 quantity
+     *
+     * Önce kayıtlı quantity kullanılır.
+     * Yoksa initialQuantity.
+     * O da yoksa notional / entry.
+     */
+    let initialQuantity =
+        n(p.initialQuantity);
+
+
+    if(initialQuantity <= 0){
+
+        initialQuantity =
+            entry > 0 &&
+            notional > 0
+                ? notional / entry
+                : 0;
+
+    }
+
+
+    let quantity =
+        n(p.quantity);
+
+
+    if(quantity <= 0){
+
+        quantity =
+            initialQuantity;
+
+    }
+
 
     return{
 
+        /* =================================================
+           TEMEL
+        ================================================= */
+
         id:
-            p.id||
+            p.id ||
             Date.now(),
 
-        symbol:p.symbol,
+
+        symbol:
+            p.symbol,
+
 
         side:
-            p.side==='SHORT'
-                ?'SHORT'
-                :'LONG',
+            p.side === 'SHORT'
+                ? 'SHORT'
+                : 'LONG',
+
 
         score:
-            Number.isFinite(Number(p.score))
-                ?n(p.score)
-                :null,
+            Number.isFinite(
+                Number(p.score)
+            )
+                ? n(p.score)
+                : null,
+
 
         confirmation:
-            p.confirmation||'',
+            p.confirmation || '',
+
 
         quality:
-            p.quality||'',
+            p.quality || '',
 
-        entry:n(p.entry),
+
+        /* =================================================
+           FİYATLAR
+        ================================================= */
+
+        entry,
 
         currentPrice:
-            n(p.currentPrice)||
-            n(p.entry),
+            n(p.currentPrice) ||
+            entry,
 
-        sl:n(p.sl),
 
-        tp1:n(p.tp1),
+        initialSl:
+            n(p.initialSl) ||
+            n(p.sl),
 
-        tp2:n(p.tp2),
 
-        tp3:n(p.tp3),
+        sl:
+            n(p.sl),
 
-        lev:n(p.lev)||1,
 
-        capital:n(p.capital),
+        tp1:
+            n(p.tp1),
 
-        notional:
-            n(p.notional)||
-            n(p.capital)*n(p.lev),
+
+        tp2:
+            n(p.tp2),
+
+
+        tp3:
+            n(p.tp3),
+
+
+        /* =================================================
+           SERMAYE / KALDIRAÇ
+        ================================================= */
+
+        capital,
+
+        lev,
+
+        notional,
+
+
+        /* =================================================
+           QUANTITY
+        ================================================= */
+
+        initialQuantity,
+
+        quantity,
+
+
+        /* =================================================
+           TP DURUMLARI
+        ================================================= */
+
+        tp1Hit:
+            p.tp1Hit === true,
+
+
+        tp2Hit:
+            p.tp2Hit === true,
+
+
+        tp3Hit:
+            p.tp3Hit === true,
+
+
+        tp1At:
+            p.tp1At || null,
+
+
+        tp2At:
+            p.tp2At || null,
+
+
+        tp3At:
+            p.tp3At || null,
+
+
+        tp1Price:
+            n(p.tp1Price),
+
+
+        tp2Price:
+            n(p.tp2Price),
+
+
+        tp3Price:
+            n(p.tp3Price),
+
+
+        /* =================================================
+           BREAK EVEN
+        ================================================= */
+
+        breakEven:
+            p.breakEven === true ||
+            p.breakEvenActive === true,
+
+
+        breakEvenActive:
+            p.breakEvenActive === true ||
+            p.breakEven === true,
+
+
+        breakEvenPrice:
+            n(p.breakEvenPrice) ||
+            entry,
+
+
+        /* =================================================
+           TRAILING
+        ================================================= */
+
+        trailingActive:
+            p.trailingActive === true,
+
+
+        trailingStop:
+            n(p.trailingStop),
+
+
+        trailingR:
+            n(p.trailingR),
+
+
+        /* =================================================
+           PNL
+        ================================================= */
+
+        realizedPNL:
+            n(
+                p.realizedPNL ??
+                p.realizedNetPnl
+            ),
+
+
+        grossPNL:
+            n(
+                p.grossPNL ??
+                p.realizedGrossPnl
+            ),
+
+
+        commission:
+            n(
+                p.commission ??
+                p.realizedFees
+            ),
+
+
+        realizedGrossPnl:
+            n(
+                p.realizedGrossPnl ??
+                p.grossPNL
+            ),
+
+
+        realizedFees:
+            n(
+                p.realizedFees ??
+                p.commission
+            ),
+
+
+        realizedNetPnl:
+            n(
+                p.realizedNetPnl ??
+                p.realizedPNL
+            ),
+
+
+        /* =================================================
+           RİSK
+        ================================================= */
+
+        initialRiskDistance:
+            n(p.initialRiskDistance),
+
+
+        initialRiskPct:
+            n(p.initialRiskPct),
+
+
+        accountRiskPct:
+            n(p.accountRiskPct),
+
+
+        riskAmount:
+            n(p.riskAmount),
+
+
+        maxRiskPct:
+            n(p.maxRiskPct),
+
+
+        maxRiskWarning:
+            p.maxRiskWarning === true,
+
+
+        /* =================================================
+           TP PAYLARI
+        ================================================= */
+
+        remainingQtyPct:
+            p.remainingQtyPct !== undefined
+                ? n(p.remainingQtyPct)
+                : 1,
+
+
+        tp1QtyPct:
+            n(p.tp1QtyPct),
+
+
+        tp2QtyPct:
+            n(p.tp2QtyPct),
+
+
+        tp3QtyPct:
+            n(p.tp3QtyPct),
+
+
+        /* =================================================
+           LEGS
+        ================================================= */
+
+        legs:
+            p.legs || {
+
+                tp1:
+                    typeof v10EmptyLeg === 'function'
+                        ? v10EmptyLeg()
+                        : {},
+
+                tp2:
+                    typeof v10EmptyLeg === 'function'
+                        ? v10EmptyLeg()
+                        : {},
+
+                tp3:
+                    typeof v10EmptyLeg === 'function'
+                        ? v10EmptyLeg()
+                        : {}
+
+            },
+
+
+        /* =================================================
+           EVENTLER
+        ================================================= */
+
+        events:
+            Array.isArray(p.events)
+                ? p.events
+                : [],
+
+
+        /* =================================================
+           ZAMAN / DURUM
+        ================================================= */
 
         openedAt:
-            p.openedAt||
+            p.openedAt ||
             new Date().toISOString(),
 
-        status:'Açık',
 
-        maxPnl:n(p.maxPnl),
+        status:
+            p.status ||
+            'Açık',
 
-        minPnl:n(p.minPnl),
 
-        lastPnl:n(p.lastPnl),
+        closed:
+            p.closed === true,
+
+
+        closedAt:
+            p.closedAt || null,
+
+
+        closeReason:
+            p.closeReason || '',
+
+
+        closePrice:
+            n(p.closePrice),
+
+
+        /* =================================================
+           PNL TAKİBİ
+        ================================================= */
+
+        maxPnl:
+            n(p.maxPnl),
+
+
+        minPnl:
+            n(p.minPnl),
+
+
+        lastPnl:
+            n(p.lastPnl),
+
 
         updatedAt:
-            p.updatedAt||
+            p.updatedAt ||
             Date.now()
+
     };
+
 }
 
 
