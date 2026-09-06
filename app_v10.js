@@ -3292,9 +3292,18 @@ ${position.lev}x
 <span>AKTİF MİKTAR</span>
 
 <b>
-${remainingQuantity
-    ? remainingQuantity.toFixed(6)
-    : '—'}
+${
+    Number(
+        position.quantity ??
+        position.initialQuantity ??
+        0
+    ) > 0
+        ? Number(
+            position.quantity ??
+            position.initialQuantity
+        ).toFixed(6)
+        : '—'
+}
 </b>
 
 </div>
