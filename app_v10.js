@@ -2285,8 +2285,14 @@ function checkAutoClose(position,price){
 
 
 /* =========================================================
-   AÇIK POZİSYON
-   ========================================================= */
+   V10.4 OPEN POSITION RENDER
+   ---------------------------------------------------------
+   Position Manager bağlantısı
+   TP1 / TP2 / TP3
+   Break-Even
+   Trailing Stop
+   Net PNL
+========================================================= */
 
 function renderOpenPosition(){
 
@@ -2301,6 +2307,10 @@ function renderOpenPosition(){
 
     let position=getOpenPosition();
 
+
+    /* =====================================================
+       AÇIK POZİSYON YOK
+    ===================================================== */
 
     if(!position){
 
@@ -2322,6 +2332,10 @@ Açık paper pozisyon bulunmuyor.
     }
 
 
+    /* =====================================================
+       GÜNCEL FİYAT
+    ===================================================== */
+
     const ticker=
         tickers.get(position.symbol);
 
@@ -2329,30 +2343,86 @@ Açık paper pozisyon bulunmuyor.
     const currentPrice=
         n(ticker?.c)||
         n(position.currentPrice)||
-        position.entry;
+        n(position.entry);
 
 
-    const auto=
-        checkAutoClose(
-            position,
-            currentPrice
-        );
-
-
-    if(auto){
-
-        closePaperPosition(
-            auto.reason,
-            auto.price,
-            true
-        );
+    if(!currentPrice){
 
         return;
+
     }
 
 
-    position.currentPrice=currentPrice;
+    /* =====================================================
+       V10.4 POSITION MANAGER
+    ===================================================== */
 
+    if(
+        window.FSSPositionManagerV104 &&
+        typeof
+        window.FSSPositionManagerV104.manage
+        === 'function'
+    ){
+
+        try{
+
+            const managerResult=
+                window.FSSPositionManagerV104.manage(
+                    position,
+                    currentPrice
+                );
+
+
+            /* ---------------------------------------------
+               POZİSYON KAPANDI
+            --------------------------------------------- */
+
+            if(managerResult?.closed){
+
+                finalizeV104Position(
+                    position,
+                    currentPrice
+                );
+
+                return;
+
+            }
+
+
+            /* ---------------------------------------------
+               TP / BE / TRAILING değişikliği
+            --------------------------------------------- */
+
+            if(managerResult?.changed){
+
+                position.updatedAt=
+                    Date.now();
+
+            }
+
+        }catch(error){
+
+            console.error(
+                'V10.4 Position Manager render hatası:',
+                error
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       GÜNCEL FİYATI POZİSYONA YAZ
+    ===================================================== */
+
+    position.currentPrice=
+        currentPrice;
+
+
+    /* =====================================================
+       PNL
+    ===================================================== */
 
     const result=
         calculatePnl(
@@ -2361,7 +2431,8 @@ Açık paper pozisyon bulunmuyor.
         );
 
 
-    position.lastPnl=result.pnl;
+    position.lastPnl=
+        result.pnl;
 
 
     position.maxPnl=
@@ -2378,17 +2449,129 @@ Açık paper pozisyon bulunmuyor.
         );
 
 
-    position.updatedAt=Date.now();
+    position.updatedAt=
+        Date.now();
 
 
-    saveOpenPosition(position);
+    saveOpenPosition(
+        position
+    );
 
+
+    /* =====================================================
+       PNL RENK
+    ===================================================== */
 
     const pnlClass=
         result.pnl>=0
-            ?'green'
-            :'red';
+            ? 'green'
+            : 'red';
 
+
+    /* =====================================================
+       POZİSYON DURUMU
+    ===================================================== */
+
+    let positionStatus=
+        'AÇIK';
+
+
+    if(position.tp3Hit){
+
+        positionStatus=
+            'TP3';
+
+    }else if(position.tp2Hit){
+
+        positionStatus=
+            'TP2';
+
+    }else if(position.tp1Hit){
+
+        if(position.trailingActive){
+
+            positionStatus=
+                'TP1 • TRAILING';
+
+        }else if(position.breakEven){
+
+            positionStatus=
+                'TP1 • BREAK-EVEN';
+
+        }else{
+
+            positionStatus=
+                'TP1';
+
+        }
+
+    }
+
+
+    /* =====================================================
+       SL DURUMU
+    ===================================================== */
+
+    let slLabel=
+        'STOP LOSS';
+
+
+    if(position.breakEven){
+
+        slLabel=
+            'BREAK-EVEN';
+
+    }else if(position.trailingActive){
+
+        slLabel=
+            'TRAILING STOP';
+
+    }
+
+
+    /* =====================================================
+       TP DURUMLARI
+    ===================================================== */
+
+    const tp1Status=
+        position.tp1Hit
+            ? '✓ GERÇEKLEŞTİ'
+            : 'BEKLİYOR';
+
+
+    const tp2Status=
+        position.tp2Hit
+            ? '✓ GERÇEKLEŞTİ'
+            : 'BEKLİYOR';
+
+
+    const tp3Status=
+        position.tp3Hit
+            ? '✓ GERÇEKLEŞTİ'
+            : 'BEKLİYOR';
+
+
+    /* =====================================================
+       V10.4 GERÇEKLEŞEN PNL
+    ===================================================== */
+
+    const realizedPNL=
+        n(position.realizedPNL);
+
+
+    const commission=
+        n(position.commission);
+
+
+    const remainingQuantity=
+        n(
+            position.quantity
+        );
+
+
+    /* =====================================================
+       EKRAN
+    ===================================================== */
 
     container.innerHTML=`
 
@@ -2401,166 +2584,521 @@ Paper Trading • Gerçek emir gönderilmedi
 </div>
 
 
+<!-- =====================================================
+     DURUM
+===================================================== -->
+
+<div class="box"
+style="margin-top:10px">
+
+<span>DURUM</span>
+
+<b class="${
+    position.side==='LONG'
+        ? 'green'
+        : 'red'
+}">
+${positionStatus}
+</b>
+
+</div>
+
+
+<!-- =====================================================
+     ANA BİLGİLER
+===================================================== -->
+
 <div class="grid">
 
 <div class="box">
+
 <span>COIN</span>
-<b>${escapeHtml(position.symbol)}</b>
+
+<b>
+${escapeHtml(position.symbol)}
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>YÖN</span>
+
 <b class="${
     position.side==='LONG'
-        ?'green'
-        :'red'
+        ? 'green'
+        : 'red'
 }">
 ${position.side}
 </b>
+
 </div>
 
+
 <div class="box">
+
 <span>GİRİŞ</span>
-<b>${fmt(position.entry)}</b>
+
+<b>
+${fmt(position.entry)}
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>ANLIK FİYAT</span>
-<b>${fmt(currentPrice)}</b>
+
+<b>
+${fmt(currentPrice)}
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>SERMAYE</span>
-<b>${fmt(position.capital)} USDT</b>
+
+<b>
+${fmt(position.capital)} USDT
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>NOTIONAL</span>
-<b>${fmt(position.notional)} USDT</b>
+
+<b>
+${fmt(position.notional)} USDT
+</b>
+
 </div>
 
+
 <div class="box">
+
 <span>KALDIRAÇ</span>
-<b>${position.lev}x</b>
-</div>
 
-<div class="box">
-<span>PNL</span>
-<b class="${pnlClass}">
-${result.pnl>=0?'+':''}${fmtPnl(result.pnl)} USDT
-</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>FİYAT DEĞİŞİMİ</span>
-<b class="${pnlClass}">
-${result.pnlPct>=0?'+':''}${result.pnlPct.toFixed(2)}%
-</b>
-</div>
-
-<div class="box">
-<span>KALDIRAÇLI PNL</span>
-<b class="${pnlClass}">
-${result.leveragedPct>=0?'+':''}${result.leveragedPct.toFixed(2)}%
-</b>
-</div>
-
-<div class="box">
-<span>STOP LOSS</span>
-<b class="red">${fmt(position.sl)}</b>
-</div>
-
-<div class="box">
-<span>TP1</span>
-<b class="green">${fmt(position.tp1)}</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>TP2</span>
-<b class="green">${fmt(position.tp2)}</b>
-</div>
-
-<div class="box">
-<span>TP3</span>
-<b class="green">${fmt(position.tp3)}</b>
-</div>
-
-<div class="box">
-<span>EN İYİ PNL</span>
-<b class="green">
-+${fmtPnl(position.maxPnl)} USDT
-</b>
-</div>
-
-<div class="box">
-<span>EN KÖTÜ PNL</span>
-<b class="red">
-${fmtPnl(position.minPnl)} USDT
-</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>SİNYAL SKORU</span>
-<b>
-${position.score!==null
-    ?position.score+'/100'
-    :'—'}
-</b>
-</div>
-
-<div class="box">
-<span>TEYİT</span>
-<b>
-${escapeHtml(position.confirmation||'—')}
-</b>
-</div>
-
-<div class="box">
-<span>KALİTE</span>
-<b>
-${escapeHtml(position.quality||'—')}
-</b>
-</div>
-
-<div class="box">
-<span>KALDIRAÇ</span>
 <b>
 ${position.lev}x
 </b>
-</div>
 
 </div>
 
+
+<div class="box">
+
+<span>AKTİF MİKTAR</span>
+
+<b>
+${remainingQuantity
+    ? remainingQuantity.toFixed(6)
+    : '—'}
+</b>
+
+</div>
+
+</div>
+
+
+<!-- =====================================================
+     PNL
+===================================================== -->
+
+<div class="grid">
+
+<div class="box">
+
+<span>ANLIK PNL</span>
+
+<b class="${pnlClass}">
+
+${result.pnl>=0?'+':''}
+${fmtPnl(result.pnl)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>FİYAT DEĞİŞİMİ</span>
+
+<b class="${pnlClass}">
+
+${result.pnlPct>=0?'+':''}
+${result.pnlPct.toFixed(2)}%
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>KALDIRAÇLI PNL</span>
+
+<b class="${pnlClass}">
+
+${result.leveragedPct>=0?'+':''}
+${result.leveragedPct.toFixed(2)}%
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>GERÇEKLEŞEN PNL</span>
+
+<b class="${
+    realizedPNL>=0
+        ? 'green'
+        : 'red'
+}">
+
+${realizedPNL>=0?'+':''}
+${fmtPnl(realizedPNL)}
+USDT
+
+</b>
+
+</div>
+
+</div>
+
+
+<!-- =====================================================
+     KOMİSYON
+===================================================== -->
+
+<div class="grid">
+
+<div class="box">
+
+<span>KOMİSYON</span>
+
+<b>
+${fmtPnl(commission)}
+USDT
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>EN İYİ PNL</span>
+
+<b class="green">
+
++${fmtPnl(position.maxPnl)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>EN KÖTÜ PNL</span>
+
+<b class="red">
+
+${fmtPnl(position.minPnl)}
+USDT
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>AKTİF MİKTAR</span>
+
+<b>
+${remainingQuantity
+    ? remainingQuantity.toFixed(6)
+    : '0'}
+</b>
+
+</div>
+
+</div>
+
+
+<!-- =====================================================
+     SL / TP
+===================================================== -->
+
+<div class="grid">
+
+<div class="box">
+
+<span>${slLabel}</span>
+
+<b class="${
+    position.breakEven ||
+    position.trailingActive
+        ? 'yellow'
+        : 'red'
+}">
+
+${fmt(position.sl)}
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>TP1</span>
+
+<b class="${
+    position.tp1Hit
+        ? 'green'
+        : ''
+}">
+
+${fmt(position.tp1)}
+
+<br>
+
+<small>
+${tp1Status}
+</small>
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>TP2</span>
+
+<b class="${
+    position.tp2Hit
+        ? 'green'
+        : ''
+}">
+
+${fmt(position.tp2)}
+
+<br>
+
+<small>
+${tp2Status}
+</small>
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>TP3</span>
+
+<b class="${
+    position.tp3Hit
+        ? 'green'
+        : ''
+}">
+
+${fmt(position.tp3)}
+
+<br>
+
+<small>
+${tp3Status}
+</small>
+
+</b>
+
+</div>
+
+</div>
+
+
+<!-- =====================================================
+     TP1 BİLGİ
+===================================================== -->
+
+${
+    position.tp1Hit
+        ? `
+
+<div class="box"
+style="margin-top:9px">
+
+<span>TP1 SONRASI</span>
+
+<b class="green">
+
+%30 kısmi kâr alındı
+
+</b>
+
+<div class="muted"
+style="margin-top:4px">
+
+${
+    position.breakEven
+        ? 'SL giriş fiyatına taşındı.'
+        : 'Break-even bekleniyor.'
+}
+
+</div>
+
+</div>
+
+`
+        : ''
+}
+
+
+<!-- =====================================================
+     TRAILING
+===================================================== -->
+
+${
+    position.trailingActive
+        ? `
+
+<div class="box"
+style="margin-top:9px">
+
+<span>TRAILING STOP</span>
+
+<b class="yellow">
+
+AKTİF
+
+</b>
+
+<div class="muted"
+style="margin-top:4px">
+
+SL fiyat hareketini takip ediyor.
+
+</div>
+
+</div>
+
+`
+        : ''
+}
+
+
+<!-- =====================================================
+     SİNYAL
+===================================================== -->
+
+<div class="grid">
+
+<div class="box">
+
+<span>SİNYAL SKORU</span>
+
+<b>
+
+${
+    position.score!==null
+        ? position.score+'/100'
+        : '—'
+}
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>TEYİT</span>
+
+<b>
+
+${escapeHtml(
+    position.confirmation||'—'
+)}
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>KALİTE</span>
+
+<b>
+
+${escapeHtml(
+    position.quality||'—'
+)}
+
+</b>
+
+</div>
+
+
+<div class="box">
+
+<span>KALDIRAÇ</span>
+
+<b>
+
+${position.lev}x
+
+</b>
+
+</div>
+
+</div>
+
+
+<!-- =====================================================
+     ZAMAN
+===================================================== -->
 
 <div class="meta">
 
 <span>
+
 Açılış:
-${new Date(position.openedAt)
-    .toLocaleString('tr-TR')}
+${new Date(
+    position.openedAt
+).toLocaleString('tr-TR')}
+
 </span>
 
+
 <span>
-ID: ${escapeHtml(position.id)}
+
+ID:
+${escapeHtml(position.id)}
+
 </span>
 
 </div>
 
+
+<!-- =====================================================
+     KAPAT
+===================================================== -->
 
 <button
 class="secondary"
@@ -2570,11 +3108,12 @@ Pozisyonu Kapat
 
 </button>
 
+
 </div>
 
 `;
-}
 
+}
 
 /* =========================================================
    POZİSYON KAPAT
