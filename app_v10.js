@@ -7029,3 +7029,1109 @@ initV10();
     );
 
 })();
+
+/* =========================================================
+   V10.4 POSITION MANAGER
+   ---------------------------------------------------------
+   TP1 partial close
+   TP1 sonrası Break-Even
+   TP2
+   TP3
+   Trailing Stop
+   Commission
+   Net PNL
+========================================================= */
+
+(function(){
+
+    "use strict";
+
+    const V104 = {
+
+        VERSION: "10.4",
+
+        /* -------------------------------------------------
+           AYARLAR
+        ------------------------------------------------- */
+
+        config: {
+
+            /* TP1 gerçekleşince pozisyonun %30'u kapanır */
+            tp1ClosePercent: 30,
+
+            /* TP1 sonrası SL giriş fiyatına taşınır */
+            breakEvenAfterTP1: true,
+
+            /* Trailing Stop */
+            trailingEnabled: true,
+
+            /* Fiyat TP1'e ulaştıktan sonra trailing başlar */
+            trailingActivationTP: 1,
+
+            /* Trailing mesafesi */
+            trailingPercent: 0.40,
+
+            /* Binance benzeri varsayılan paper komisyon */
+            commissionRate: 0.0004
+
+        },
+
+
+        /* -------------------------------------------------
+           SAYI GÜVENLİĞİ
+        ------------------------------------------------- */
+
+        number(value, fallback = 0){
+
+            const n = Number(value);
+
+            return Number.isFinite(n)
+                ? n
+                : fallback;
+
+        },
+
+
+        clamp(value, min, max){
+
+            return Math.max(
+                min,
+                Math.min(max, value)
+            );
+
+        },
+
+
+        /* -------------------------------------------------
+           POZİSYON YÖNÜ
+        ------------------------------------------------- */
+
+        isLong(position){
+
+            return String(
+                position?.side || ""
+            ).toUpperCase() === "LONG";
+
+        },
+
+
+        isShort(position){
+
+            return String(
+                position?.side || ""
+            ).toUpperCase() === "SHORT";
+
+        },
+
+
+        /* -------------------------------------------------
+           FİYAT HEDEFLERİ
+        ------------------------------------------------- */
+
+        reachedTP1(position, price){
+
+            const p = this.number(price);
+
+            const tp1 = this.number(
+                position.tp1
+            );
+
+            if(this.isLong(position)){
+
+                return p >= tp1;
+
+            }
+
+            if(this.isShort(position)){
+
+                return p <= tp1;
+
+            }
+
+            return false;
+
+        },
+
+
+        reachedTP2(position, price){
+
+            const p = this.number(price);
+
+            const tp2 = this.number(
+                position.tp2
+            );
+
+            if(this.isLong(position)){
+
+                return p >= tp2;
+
+            }
+
+            if(this.isShort(position)){
+
+                return p <= tp2;
+
+            }
+
+            return false;
+
+        },
+
+
+        reachedTP3(position, price){
+
+            const p = this.number(price);
+
+            const tp3 = this.number(
+                position.tp3
+            );
+
+            if(this.isLong(position)){
+
+                return p >= tp3;
+
+            }
+
+            if(this.isShort(position)){
+
+                return p <= tp3;
+
+            }
+
+            return false;
+
+        },
+
+
+        /* -------------------------------------------------
+           STOP LOSS
+        ------------------------------------------------- */
+
+        reachedSL(position, price){
+
+            const p = this.number(price);
+
+            const sl = this.number(
+                position.sl
+            );
+
+            if(!sl){
+
+                return false;
+
+            }
+
+            if(this.isLong(position)){
+
+                return p <= sl;
+
+            }
+
+            if(this.isShort(position)){
+
+                return p >= sl;
+
+            }
+
+            return false;
+
+        },
+
+
+        /* -------------------------------------------------
+           TRAILING STOP
+        ------------------------------------------------- */
+
+        updateTrailingStop(position, price){
+
+            if(!this.config.trailingEnabled){
+
+                return false;
+
+            }
+
+            if(
+                this.config.trailingActivationTP >= 1 &&
+                !position.tp1Hit
+            ){
+
+                return false;
+
+            }
+
+            const p = this.number(price);
+
+            if(!p){
+
+                return false;
+
+            }
+
+            const distance =
+                p *
+                (
+                    this.config.trailingPercent /
+                    100
+                );
+
+            let newSL;
+
+            if(this.isLong(position)){
+
+                newSL = p - distance;
+
+                if(
+                    !position.sl ||
+                    newSL > this.number(position.sl)
+                ){
+
+                    position.sl = newSL;
+
+                    position.trailingActive = true;
+
+                    return true;
+
+                }
+
+            }
+
+
+            if(this.isShort(position)){
+
+                newSL = p + distance;
+
+                if(
+                    !position.sl ||
+                    newSL < this.number(position.sl)
+                ){
+
+                    position.sl = newSL;
+
+                    position.trailingActive = true;
+
+                    return true;
+
+                }
+
+            }
+
+            return false;
+
+        },
+
+
+        /* -------------------------------------------------
+           BREAK EVEN
+        ------------------------------------------------- */
+
+        moveToBreakEven(position){
+
+            if(
+                !this.config.breakEvenAfterTP1
+            ){
+
+                return false;
+
+            }
+
+            const entry =
+                this.number(
+                    position.entry
+                );
+
+            if(!entry){
+
+                return false;
+
+            }
+
+            if(
+                this.isLong(position) &&
+                (
+                    !position.sl ||
+                    this.number(position.sl) < entry
+                )
+            ){
+
+                position.sl = entry;
+
+                position.breakEven = true;
+
+                return true;
+
+            }
+
+
+            if(
+                this.isShort(position) &&
+                (
+                    !position.sl ||
+                    this.number(position.sl) > entry
+                )
+            ){
+
+                position.sl = entry;
+
+                position.breakEven = true;
+
+                return true;
+
+            }
+
+            return false;
+
+        },
+
+
+        /* -------------------------------------------------
+           KOMİSYON
+        ------------------------------------------------- */
+
+        commission(notional){
+
+            return Math.abs(
+                this.number(notional)
+            ) *
+            this.config.commissionRate;
+
+        },
+
+
+        /* -------------------------------------------------
+           PNL
+        ------------------------------------------------- */
+
+        grossPNL(
+            side,
+            entry,
+            exit,
+            quantity
+        ){
+
+            entry =
+                this.number(entry);
+
+            exit =
+                this.number(exit);
+
+            quantity =
+                this.number(quantity);
+
+            if(
+                !entry ||
+                !exit ||
+                !quantity
+            ){
+
+                return 0;
+
+            }
+
+            if(
+                String(side).toUpperCase()
+                === "LONG"
+            ){
+
+                return (
+                    exit -
+                    entry
+                ) * quantity;
+
+            }
+
+            return (
+                entry -
+                exit
+            ) * quantity;
+
+        },
+
+
+        /* -------------------------------------------------
+           NET PNL
+        ------------------------------------------------- */
+
+        netPNL(
+            side,
+            entry,
+            exit,
+            quantity
+        ){
+
+            const gross =
+                this.grossPNL(
+                    side,
+                    entry,
+                    exit,
+                    quantity
+                );
+
+            const entryCommission =
+                this.commission(
+                    this.number(entry) *
+                    this.number(quantity)
+                );
+
+            const exitCommission =
+                this.commission(
+                    this.number(exit) *
+                    this.number(quantity)
+                );
+
+            return {
+
+                gross,
+
+                entryCommission,
+
+                exitCommission,
+
+                commission:
+                    entryCommission +
+                    exitCommission,
+
+                net:
+                    gross -
+                    entryCommission -
+                    exitCommission
+
+            };
+
+        },
+
+
+        /* -------------------------------------------------
+           POZİSYON OLAYI
+        ------------------------------------------------- */
+
+        event(
+            position,
+            type,
+            price,
+            pnl = 0
+        ){
+
+            if(!Array.isArray(position.events)){
+
+                position.events = [];
+
+            }
+
+            position.events.push({
+
+                type,
+
+                price:
+                    this.number(price),
+
+                pnl:
+                    this.number(pnl),
+
+                timestamp:
+                    Date.now()
+
+            });
+
+        },
+
+
+        /* -------------------------------------------------
+           TP1
+        ------------------------------------------------- */
+
+        processTP1(
+            position,
+            price
+        ){
+
+            if(position.tp1Hit){
+
+                return false;
+
+            }
+
+            if(
+                !this.reachedTP1(
+                    position,
+                    price
+                )
+            ){
+
+                return false;
+
+            }
+
+            const originalQty =
+                this.number(
+                    position.initialQuantity ||
+                    position.quantity
+                );
+
+            if(!originalQty){
+
+                return false;
+
+            }
+
+            const closePercent =
+                this.clamp(
+                    this.config.tp1ClosePercent,
+                    0,
+                    100
+                );
+
+            const closeQty =
+                originalQty *
+                (
+                    closePercent /
+                    100
+                );
+
+            const pnl =
+                this.grossPNL(
+                    position.side,
+                    position.entry,
+                    price,
+                    closeQty
+                );
+
+            const costs =
+                this.commission(
+                    this.number(
+                        position.entry
+                    ) *
+                    closeQty
+                )
+                +
+                this.commission(
+                    this.number(price) *
+                    closeQty
+                );
+
+            const net =
+                pnl - costs;
+
+
+            position.quantity =
+                Math.max(
+                    0,
+                    originalQty -
+                    closeQty
+                );
+
+            position.tp1Hit = true;
+
+            position.tp1CloseQty =
+                closeQty;
+
+            position.tp1GrossPNL =
+                pnl;
+
+            position.tp1Commission =
+                costs;
+
+            position.tp1NetPNL =
+                net;
+
+            position.realizedPNL =
+                this.number(
+                    position.realizedPNL
+                ) + net;
+
+
+            this.event(
+                position,
+                "TP1",
+                price,
+                net
+            );
+
+
+            /* TP1 sonrası Break-Even */
+
+            this.moveToBreakEven(
+                position
+            );
+
+
+            return true;
+
+        },
+
+
+        /* -------------------------------------------------
+           TP2
+        ------------------------------------------------- */
+
+        processTP2(
+            position,
+            price
+        ){
+
+            if(position.tp2Hit){
+
+                return false;
+
+            }
+
+            if(
+                !this.reachedTP2(
+                    position,
+                    price
+                )
+            ){
+
+                return false;
+
+            }
+
+            position.tp2Hit = true;
+
+            position.tp2Price =
+                this.number(price);
+
+
+            this.event(
+                position,
+                "TP2",
+                price,
+                0
+            );
+
+
+            return true;
+
+        },
+
+
+        /* -------------------------------------------------
+           TP3 / TAM KAPATMA
+        ------------------------------------------------- */
+
+        processTP3(
+            position,
+            price
+        ){
+
+            if(position.tp3Hit){
+
+                return false;
+
+            }
+
+            if(
+                !this.reachedTP3(
+                    position,
+                    price
+                )
+            ){
+
+                return false;
+
+            }
+
+            position.tp3Hit = true;
+
+            position.tp3Price =
+                this.number(price);
+
+
+            this.event(
+                position,
+                "TP3",
+                price,
+                0
+            );
+
+
+            return true;
+
+        },
+
+
+        /* -------------------------------------------------
+           STOP
+        ------------------------------------------------- */
+
+        processStop(
+            position,
+            price
+        ){
+
+            if(
+                !this.reachedSL(
+                    position,
+                    price
+                )
+            ){
+
+                return false;
+
+            }
+
+            const quantity =
+                this.number(
+                    position.quantity
+                );
+
+            if(!quantity){
+
+                return true;
+
+            }
+
+            const result =
+                this.netPNL(
+                    position.side,
+                    position.entry,
+                    price,
+                    quantity
+                );
+
+
+            position.stopHit = true;
+
+            position.exitPrice =
+                this.number(price);
+
+            position.exitReason =
+                position.breakEven
+                    ? "BREAK_EVEN"
+                    : (
+                        position.trailingActive
+                            ? "TRAILING_STOP"
+                            : "STOP_LOSS"
+                    );
+
+
+            position.grossPNL =
+                this.number(
+                    position.grossPNL
+                ) +
+                result.gross;
+
+            position.commission =
+                this.number(
+                    position.commission
+                ) +
+                result.commission;
+
+            position.realizedPNL =
+                this.number(
+                    position.realizedPNL
+                ) +
+                result.net;
+
+            position.netPNL =
+                this.number(
+                    position.realizedPNL
+                );
+
+
+            this.event(
+                position,
+                position.exitReason,
+                price,
+                result.net
+            );
+
+
+            position.quantity = 0;
+
+            position.closed = true;
+
+            position.status = "CLOSED";
+
+            position.closedAt =
+                Date.now();
+
+
+            return true;
+
+        },
+
+
+        /* -------------------------------------------------
+           TP3 SONRASI KAPAT
+        ------------------------------------------------- */
+
+        closeAtTP3(
+            position,
+            price
+        ){
+
+            const quantity =
+                this.number(
+                    position.quantity
+                );
+
+            if(!quantity){
+
+                position.closed = true;
+
+                position.status = "CLOSED";
+
+                return;
+
+            }
+
+            const result =
+                this.netPNL(
+                    position.side,
+                    position.entry,
+                    price,
+                    quantity
+                );
+
+
+            position.exitPrice =
+                this.number(price);
+
+            position.exitReason =
+                "TP3";
+
+            position.grossPNL =
+                this.number(
+                    position.grossPNL
+                ) +
+                result.gross;
+
+            position.commission =
+                this.number(
+                    position.commission
+                ) +
+                result.commission;
+
+            position.realizedPNL =
+                this.number(
+                    position.realizedPNL
+                ) +
+                result.net;
+
+            position.netPNL =
+                this.number(
+                    position.realizedPNL
+                );
+
+
+            this.event(
+                position,
+                "CLOSE_TP3",
+                price,
+                result.net
+            );
+
+
+            position.quantity = 0;
+
+            position.closed = true;
+
+            position.status = "CLOSED";
+
+            position.closedAt =
+                Date.now();
+
+        },
+
+
+        /* -------------------------------------------------
+           ANA YÖNETİCİ
+        ------------------------------------------------- */
+
+        manage(
+            position,
+            price
+        ){
+
+            if(!position){
+
+                return {
+                    changed: false,
+                    closed: false
+                };
+
+            }
+
+            if(position.closed){
+
+                return {
+                    changed: false,
+                    closed: true
+                };
+
+            }
+
+
+            const p =
+                this.number(price);
+
+            if(!p){
+
+                return {
+                    changed: false,
+                    closed: false
+                };
+
+            }
+
+
+            let changed = false;
+
+
+            /* -----------------------------------------
+               STOP ÖNCE
+            ----------------------------------------- */
+
+            if(
+                this.reachedSL(
+                    position,
+                    p
+                )
+            ){
+
+                const closed =
+                    this.processStop(
+                        position,
+                        p
+                    );
+
+                return {
+
+                    changed:
+                        closed || changed,
+
+                    closed:
+                        !!position.closed
+
+                };
+
+            }
+
+
+            /* -----------------------------------------
+               TP1
+            ----------------------------------------- */
+
+            if(
+                this.processTP1(
+                    position,
+                    p
+                )
+            ){
+
+                changed = true;
+
+            }
+
+
+            /* -----------------------------------------
+               TP2
+            ----------------------------------------- */
+
+            if(
+                this.processTP2(
+                    position,
+                    p
+                )
+            ){
+
+                changed = true;
+
+            }
+
+
+            /* -----------------------------------------
+               TP3
+            ----------------------------------------- */
+
+            if(
+                this.processTP3(
+                    position,
+                    p
+                )
+            ){
+
+                changed = true;
+
+                this.closeAtTP3(
+                    position,
+                    p
+                );
+
+                return {
+
+                    changed: true,
+
+                    closed: true
+
+                };
+
+            }
+
+
+            /* -----------------------------------------
+               TRAILING
+            ----------------------------------------- */
+
+            if(
+                this.updateTrailingStop(
+                    position,
+                    p
+                )
+            ){
+
+                changed = true;
+
+            }
+
+
+            /* -----------------------------------------
+               TRAILING SONRASI STOP
+            ----------------------------------------- */
+
+            if(
+                !position.closed &&
+                this.reachedSL(
+                    position,
+                    p
+                )
+            ){
+
+                this.processStop(
+                    position,
+                    p
+                );
+
+                changed = true;
+
+            }
+
+
+            return {
+
+                changed,
+
+                closed:
+                    !!position.closed
+
+            };
+
+        }
+
+    };
+
+
+    /* =====================================================
+       GLOBAL API
+    ===================================================== */
+
+    window.FSSPositionManagerV104 =
+        V104;
+
+
+    console.log(
+        "FSS V10.4 Position Manager aktif."
+    );
+
+
+})();
