@@ -2353,63 +2353,7 @@ Açık paper pozisyon bulunmuyor.
     }
 
 
-    /* =====================================================
-       V10.4 POSITION MANAGER
-    ===================================================== */
-
-    if(
-        window.FSSPositionManagerV104 &&
-        typeof
-        window.FSSPositionManagerV104.manage
-        === 'function'
-    ){
-
-        try{
-
-            const managerResult=
-                window.FSSPositionManagerV104.manage(
-                    position,
-                    currentPrice
-                );
-
-
-            /* ---------------------------------------------
-               POZİSYON KAPANDI
-            --------------------------------------------- */
-
-            if(managerResult?.closed){
-
-                finalizeV104Position(
-                    position,
-                    currentPrice
-                );
-
-                return;
-
-            }
-
-
-            /* ---------------------------------------------
-               TP / BE / TRAILING değişikliği
-            --------------------------------------------- */
-
-            if(managerResult?.changed){
-
-                position.updatedAt=
-                    Date.now();
-
-            }
-
-        }catch(error){
-
-            console.error(
-                'V10.4 Position Manager render hatası:',
-                error
-            );
-
-        }
-
-    }
+ 
 
 
     /* =====================================================
@@ -5129,16 +5073,26 @@ function connect(){
     }
 }
 
-
 /* =========================================================
-   POZİSYON TIMER
-   ========================================================= */
+   V10.4 POSITION TICK
+   ---------------------------------------------------------
+   Position Manager'ın tek periyodik çalışma noktası.
+   TP1 / TP2 / TP3
+   Break-Even
+   Trailing Stop
+   SL
+   PNL
+========================================================= */
 
 function positionTick(){
 
     const position=
         getOpenPosition();
 
+
+    /* -----------------------------------------------------
+       POZİSYON YOK
+    ----------------------------------------------------- */
 
     if(!position){
 
@@ -5148,22 +5102,175 @@ function positionTick(){
 
             renderOpenPosition();
             renderTradeStats();
+
         }
 
         return;
+
     }
 
+
+    /* -----------------------------------------------------
+       GÜNCEL FİYAT
+    ----------------------------------------------------- */
+
+    const ticker=
+        tickers.get(
+            position.symbol
+        );
+
+
+    const currentPrice=
+        n(ticker?.c)||
+        n(position.currentPrice);
+
+
+    if(!currentPrice){
+
+        return;
+
+    }
+
+
+    /* -----------------------------------------------------
+       V10.4 MANAGER
+       -----------------------------------------------------
+       Burada yalnızca Manager çalıştırılır.
+       Render fonksiyonu tekrar Manager çağırmaz.
+    ----------------------------------------------------- */
+
+    let managerResult=null;
+
+
+    if(
+        window.FSSPositionManagerV104 &&
+        typeof
+        window.FSSPositionManagerV104.manage
+        === 'function'
+    ){
+
+        try{
+
+            managerResult=
+                window.FSSPositionManagerV104.manage(
+                    position,
+                    currentPrice
+                );
+
+        }catch(error){
+
+            console.error(
+                'V10.4 Position Manager hatası:',
+                error
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       POZİSYON KAPANDI
+    ----------------------------------------------------- */
+
+    if(
+        managerResult?.closed ||
+        position.closed
+    ){
+
+        try{
+
+            finalizeV104Position(
+                position,
+                currentPrice
+            );
+
+        }catch(error){
+
+            console.error(
+                'V10.4 finalizasyon hatası:',
+                error
+            );
+
+        }
+
+        return;
+
+    }
+
+
+    /* -----------------------------------------------------
+       FİYATI GÜNCELLE
+    ----------------------------------------------------- */
+
+    position.currentPrice=
+        currentPrice;
+
+
+    /* -----------------------------------------------------
+       PNL
+    ----------------------------------------------------- */
+
+    const result=
+        calculatePnl(
+            position,
+            currentPrice
+        );
+
+
+    position.lastPnl=
+        result.pnl;
+
+
+    position.maxPnl=
+        Math.max(
+            n(position.maxPnl),
+            result.pnl
+        );
+
+
+    position.minPnl=
+        Math.min(
+            n(position.minPnl),
+            result.pnl
+        );
+
+
+    position.updatedAt=
+        Date.now();
+
+
+    saveOpenPosition(
+        position
+    );
+
+
+    /* -----------------------------------------------------
+       EKRANI YENİLE
+    ----------------------------------------------------- */
 
     renderOpenPosition();
 
 
-    if(currentView==='history')
+    if(
+        currentView==='history'
+    ){
+
         renderHistory();
 
+    }
 
-    if(currentView==='trade')
+
+    if(
+        currentView==='trade'
+    ){
+
         renderTradeStats();
+
+    }
+
 }
+
 
 
 /* =========================================================
