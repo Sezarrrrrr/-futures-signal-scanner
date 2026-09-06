@@ -6777,158 +6777,507 @@ initV10();
     }
 
 
-    /* =====================================================
-       EN İYİ SİNYAL
-    ===================================================== */
+  /* =====================================================
+   V10.5 DECISION ENGINE
+   EN İYİ SİNYAL
+   -----------------------------------------------------
+   V10.2 Auto Engine → V10.5 karar katmanı
+   Gerçek emir göndermez.
+===================================================== */
 
-    function findBestSignal(){
+function findBestSignal(){
 
-        const list =
-            getSignals();
-
-
-        if(!list.length){
-
-            state.blockedReason =
-                "Henüz geçerli sinyal yok.";
-
-            return null;
-
-        }
+    const list =
+        getSignals();
 
 
-        const candidates =
+    if(!list.length){
 
-            list
+        state.blockedReason =
+            "Henüz geçerli sinyal yok.";
 
-            .filter(Boolean)
-
-            .map(signal=>{
-
-                return {
-
-                    signal,
-
-                    symbol:
-                        getSymbol(signal),
-
-                    side:
-                        getSide(signal),
-
-                    score:
-                        getScore(signal)
-
-                };
-
-            })
-
-            .filter(item=>{
-
-                if(!item.symbol)
-                    return false;
-
-
-                if(!item.side)
-                    return false;
-
-
-                if(
-                    item.score <
-                    number(
-                        cfg.minScore,
-                        70
-                    )
-                ){
-
-                    return false;
-
-                }
-
-
-                if(
-                    item.side === "LONG" &&
-                    !cfg.allowLong
-                ){
-
-                    return false;
-
-                }
-
-
-                if(
-                    item.side === "SHORT" &&
-                    !cfg.allowShort
-                ){
-
-                    return false;
-
-                }
-
-
-                if(
-                    !confirmationAllowed(
-                        item.signal
-                    )
-                ){
-
-                    return false;
-
-                }
-
-
-                return true;
-
-            });
-
-
-        candidates.sort(
-
-            (a,b)=>{
-
-                /*
-                 * Önce skor.
-                 * Eşitlikte teyit edilmiş sinyal
-                 * öne alınır.
-                 */
-
-                const scoreDiff =
-                    b.score -
-                    a.score;
-
-
-                if(scoreDiff !== 0)
-                    return scoreDiff;
-
-
-                const aConfirm =
-                    a.signal?.alignedLong ||
-                    a.signal?.alignedShort
-                    ? 1
-                    : 0;
-
-
-                const bConfirm =
-                    b.signal?.alignedLong ||
-                    b.signal?.alignedShort
-                    ? 1
-                    : 0;
-
-
-                return bConfirm -
-                       aConfirm;
-
-            }
-
-        );
-
-
-        return candidates.length
-            ? candidates[0].signal
-            : null;
+        return null;
 
     }
 
 
+    const candidates =
+
+        list
+
+        .filter(Boolean)
+
+        .map(signal=>{
+
+            const symbol =
+                getSymbol(signal);
+
+            const side =
+                getSide(signal);
+
+            const rawScore =
+                getScore(signal);
+
+
+            /*
+             * LONG:
+             *   80 skor = 80 LONG gücü
+             *
+             * SHORT:
+             *   20 skor = 80 SHORT gücü
+             */
+
+            let decisionScore =
+                rawScore;
+
+
+            if(side==="SHORT"){
+
+                decisionScore =
+                    100 -
+                    rawScore;
+
+            }
+
+
+            return {
+
+                signal,
+
+                symbol,
+
+                side,
+
+                rawScore,
+
+                decisionScore
+
+            };
+
+        })
+
+
+        .filter(item=>{
+
+            if(!item.symbol)
+                return false;
+
+
+            if(
+                item.side!=="LONG" &&
+                item.side!=="SHORT"
+            ){
+
+                return false;
+
+            }
+
+
+            /*
+             * Yön ayarları
+             */
+
+            if(
+                item.side==="LONG" &&
+                !cfg.allowLong
+            ){
+
+                return false;
+
+            }
+
+
+            if(
+                item.side==="SHORT" &&
+                !cfg.allowShort
+            ){
+
+                return false;
+
+            }
+
+
+            /*
+             * Mevcut teyit filtresini koruyoruz.
+             */
+
+            if(
+                !confirmationAllowed(
+                    item.signal
+                )
+            ){
+
+                return false;
+
+            }
+
+
+            /*
+             * V10.5 karar skoru.
+             */
+
+            if(
+                item.decisionScore <
+                number(
+                    cfg.minScore,
+                    70
+                )
+            ){
+
+                return false;
+
+            }
+
+
+            return true;
+
+        });
+
+
+    /*
+     * =====================================================
+     * V10.5 KALİTE PUANLAMASI
+     * =====================================================
+     */
+
+    candidates.forEach(item=>{
+
+        let bonus=0;
+
+
+        const signal =
+            item.signal;
+
+
+        /*
+         * 1H + 15M + 5M aynı yönde mi?
+         */
+
+        const alignedLong =
+            !!signal.alignedLong;
+
+
+        const alignedShort =
+            !!signal.alignedShort;
+
+
+        if(
+            item.side==="LONG" &&
+            alignedLong
+        ){
+
+            bonus+=6;
+
+        }
+
+
+        if(
+            item.side==="SHORT" &&
+            alignedShort
+        ){
+
+            bonus+=6;
+
+        }
+
+
+        /*
+         * Teyit metni.
+         */
+
+        const confirmation =
+            String(
+                signal.confirmation ||
+                ""
+            ).toUpperCase();
+
+
+        if(
+            confirmation.includes(
+                "TEYİT EDİLDİ"
+            )
+        ){
+
+            bonus+=4;
+
+        }
+
+
+        /*
+         * Kalite.
+         */
+
+        const quality =
+            String(
+                signal.quality ||
+                ""
+            ).toUpperCase();
+
+
+        if(
+            quality.includes("ÇOK GÜÇLÜ")
+        ){
+
+            bonus+=5;
+
+        }else if(
+            quality.includes("GÜÇLÜ")
+        ){
+
+            bonus+=3;
+
+        }
+
+
+        /*
+         * Hacim.
+         */
+
+        const volume =
+            number(
+                signal.vr,
+                1
+            );
+
+
+        if(volume>=1.5){
+
+            bonus+=4;
+
+        }else if(volume>=1.25){
+
+            bonus+=2;
+
+        }
+
+
+        /*
+         * Risk / ödül.
+         */
+
+        const rr =
+            number(
+                signal.rr1,
+                0
+            );
+
+
+        if(rr>=2){
+
+            bonus+=5;
+
+        }else if(rr>=1.5){
+
+            bonus+=3;
+
+        }else if(rr<1.2){
+
+            bonus-=5;
+
+        }
+
+
+        /*
+         * Nihai karar skoru.
+         */
+
+        item.finalScore =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    Math.round(
+                        item.decisionScore +
+                        bonus
+                    )
+                )
+            );
+
+
+        /*
+         * V10.5 karar bilgisi.
+         */
+
+        item.signal.v105DecisionScore =
+            item.finalScore;
+
+
+        item.signal.v105Action =
+            item.side;
+
+
+        item.signal.v105Reason =
+            "V10.5 Decision Engine";
+
+
+    });
+
+
+    /*
+     * =====================================================
+     * ADAYLARI SIRALA
+     * =====================================================
+     */
+
+    candidates.sort(
+
+        (a,b)=>{
+
+            /*
+             * Önce V10.5 nihai skor.
+             */
+
+            const scoreDiff =
+                b.finalScore -
+                a.finalScore;
+
+
+            if(scoreDiff!==0)
+                return scoreDiff;
+
+
+            /*
+             * Sonra teknik karar skoru.
+             */
+
+            const technicalDiff =
+                b.decisionScore -
+                a.decisionScore;
+
+
+            if(technicalDiff!==0)
+                return technicalDiff;
+
+
+            /*
+             * Son olarak teyit.
+             */
+
+            const aConfirm =
+                a.signal?.alignedLong ||
+                a.signal?.alignedShort
+                    ?1
+                    :0;
+
+
+            const bConfirm =
+                b.signal?.alignedLong ||
+                b.signal?.alignedShort
+                    ?1
+                    :0;
+
+
+            return bConfirm -
+                   aConfirm;
+
+        }
+
+    );
+
+
+    /*
+     * =====================================================
+     * İŞLEM ADAYI
+     * =====================================================
+     */
+
+    if(!candidates.length){
+
+        state.blockedReason =
+            "V10.5 Decision Engine uygun işlem bulamadı.";
+
+        state.lastAction =
+            "V10.5 → WAIT";
+
+        return null;
+
+    }
+
+
+    const best =
+        candidates[0];
+
+
+    /*
+     * Güvenlik kontrolü.
+     */
+
+    if(
+        best.finalScore <
+        number(
+            cfg.minScore,
+            70
+        )
+    ){
+
+        state.blockedReason =
+            "V10.5 karar skoru işlem eşiğinin altında.";
+
+        state.lastAction =
+            "V10.5 → WAIT";
+
+        return null;
+
+    }
+
+
+    /*
+     * Auto Engine durumunu güncelle.
+     */
+
+    state.lastSymbol =
+        best.symbol;
+
+
+    state.lastSide =
+        best.side;
+
+
+    state.lastScore =
+        best.finalScore;
+
+
+    state.lastAction =
+
+        "V10.5 → " +
+        best.side +
+        " • " +
+        best.symbol +
+        " • " +
+        best.finalScore +
+        "/100";
+
+
+    state.blockedReason =
+        null;
+
+
+    console.log(
+        "[V10.5 DECISION]",
+        {
+            symbol:
+                best.symbol,
+
+            side:
+                best.side,
+
+            technicalScore:
+                best.decisionScore,
+
+            finalScore:
+                best.finalScore,
+
+            rawScore:
+                best.rawScore
+        }
+    );
+
+
+    return best.signal;
+
+}
+
+   
     /* =====================================================
        SİNYALDEN FORMU DOLDUR
     ===================================================== */
@@ -9574,3 +9923,5 @@ initV10();
 
 
 })();
+
+
