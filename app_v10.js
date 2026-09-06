@@ -1995,64 +1995,172 @@ openedAt:
 
 
 /* =========================================================
-   PNL
+   V10.4 PNL HESAPLAMA
+   ---------------------------------------------------------
+   TP1 partial close sonrası kalan miktarı dikkate alır.
    ========================================================= */
 
 function calculatePnl(position,currentPrice){
 
-    const entry=n(position.entry);
+    const entry =
+        n(position.entry);
 
-    const price=n(currentPrice);
+    const price =
+        n(currentPrice);
 
-    const capital=n(position.capital);
+    const capital =
+        n(position.capital);
 
-    const lev=n(position.lev);
+    const lev =
+        n(position.lev) || 1;
 
 
-    if(!entry||!price){
+    if(!entry || !price){
 
         return{
+
             pnl:0,
+
             pnlPct:0,
+
             leveragedPct:0,
-            move:0
+
+            move:0,
+
+            activeNotional:0,
+
+            quantity:0
+
         };
+
     }
 
+
+    /* -----------------------------------------------------
+       FİYAT HAREKETİ
+    ----------------------------------------------------- */
 
     let move;
 
 
-    if(position.side==='LONG')
-        move=(price-entry)/entry;
+    if(position.side==='LONG'){
 
-    else
-        move=(entry-price)/entry;
+        move =
+            (price-entry) /
+            entry;
+
+    }else{
+
+        move =
+            (entry-price) /
+            entry;
+
+    }
 
 
-    const pnl=
-        capital*
-        lev*
-        move;
+    /* -----------------------------------------------------
+       BAŞLANGIÇ NOTIONAL
+    ----------------------------------------------------- */
+
+    const originalNotional =
+        capital * lev;
 
 
-    const pnlPct=move*100;
+    /* -----------------------------------------------------
+       V10.4 QUANTITY
+       TP1 sonrası quantity azalır.
+    ----------------------------------------------------- */
+
+    let quantity =
+        n(position.quantity);
 
 
-    const leveragedPct=
-        pnl/
-        Math.max(capital,1e-12)*
+    /*
+     * Eski / quantity'siz pozisyonlarda
+     * geriye dönük uyumluluk.
+     */
+
+    if(quantity<=0){
+
+        const initialQuantity =
+            n(position.initialQuantity);
+
+
+        if(initialQuantity>0){
+
+            quantity =
+                initialQuantity;
+
+        }else{
+
+            quantity =
+                entry>0
+                    ? originalNotional / entry
+                    : 0;
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       AKTİF NOTIONAL
+    ----------------------------------------------------- */
+
+    const activeNotional =
+        quantity>0
+            ? entry * quantity
+            : 0;
+
+
+    /* -----------------------------------------------------
+       BRÜT PNL
+    ----------------------------------------------------- */
+
+    const pnl =
+        activeNotional * move;
+
+
+    /* -----------------------------------------------------
+       FİYAT HAREKETİ %
+    ----------------------------------------------------- */
+
+    const pnlPct =
+        move * 100;
+
+
+    /* -----------------------------------------------------
+       SERMAYEYE GÖRE PNL %
+    ----------------------------------------------------- */
+
+    const leveragedPct =
+        pnl /
+        Math.max(
+            capital,
+            1e-12
+        ) *
         100;
 
 
     return{
-        pnl,
-        pnlPct,
-        leveragedPct,
-        move
-    };
-}
 
+        pnl,
+
+        pnlPct,
+
+        leveragedPct,
+
+        move,
+
+        activeNotional,
+
+        quantity,
+
+        originalNotional
+
+    };
+
+}
 
 /* =========================================================
    SL / TP
