@@ -8335,7 +8335,7 @@ function findBestSignal(){
         `;
 
 
-      const startBtn =
+  const startBtn =
     document.getElementById(
         "v102StartBtn"
     );
