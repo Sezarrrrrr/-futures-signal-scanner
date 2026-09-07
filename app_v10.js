@@ -8335,30 +8335,29 @@ function findBestSignal(){
         `;
 
 
-        const start =
-            document.getElementById(
-                "v102StartBtn"
-            );
+      const startBtn =
+    document.getElementById(
+        "v102StartBtn"
+    );
 
+if(startBtn){
 
-        if(start){
+    startBtn.onclick =
+        function(){
 
-            start.onclick =
-                function(){
+            if(cfg.enabled){
 
-                    if(cfg.enabled){
+                stop();
 
-                        stop();
+            }else{
 
-                    }else{
+                start();
 
-                        start();
+            }
 
-                    }
+        };
 
-                };
-
-        }
+}
 
 
         const kill =
