@@ -6043,9 +6043,7 @@ function initV10(){
 
     console.log("Futures Signal Scanner V10 başlatıldı.");
 
-    // V10 Paper Trading başlangıç kontrolleri
-    renderHistory();
-    renderPerformance();
+
 
     // İşlem formu mevcut sinyalle doldurulabiliyorsa
     // mevcut V9 verisini kullan
