@@ -6442,75 +6442,107 @@ initV10();
     }
 
 
-    /* =====================================================
-       BUGÜNKÜ PNL
-    ===================================================== */
+  /* =====================================================
+   BUGÜNKÜ PNL
+   Sadece KAPANMIŞ işlemler hesaba katılır.
+===================================================== */
 
-    function getTodayPnL(){
+function getTodayPnL(){
 
-        const history =
-            getHistorySafe();
-
-        const now =
-            new Date();
-
-        const year =
-            now.getFullYear();
-
-        const month =
-            now.getMonth();
-
-        const day =
-            now.getDate();
+    const history =
+        getHistorySafe();
 
 
-        return history.reduce(
-
-            (sum,item)=>{
-
-                if(!item)
-                    return sum;
+    const now =
+        new Date();
 
 
-                const rawDate =
-                    item.closedAt ??
-                    item.openedAt ??
-                    item.createdAt;
+    const year =
+        now.getFullYear();
 
 
-                if(!rawDate)
-                    return sum;
+    const month =
+        now.getMonth();
 
 
-                const d =
-                    new Date(rawDate);
+    const day =
+        now.getDate();
 
 
-                if(
-                    d.getFullYear() === year &&
-                    d.getMonth() === month &&
-                    d.getDate() === day
-                ){
+    return history.reduce(
 
-                    return sum +
-                        number(
-                            item.pnl,
-                            0
-                        );
+        (sum,item)=>{
 
-                }
+            if(!item)
+                return sum;
 
+
+            /*
+             * Açık veya yarım kalmış pozisyonları
+             * günlük PNL hesabına dahil etme.
+             */
+
+            const status =
+                String(
+                    item.status ??
+                    ''
+                ).toLowerCase();
+
+
+            const isClosed =
+                item.closedAt &&
+                (
+                    status === 'kapalı' ||
+                    status === 'closed' ||
+                    item.closed === true
+                );
+
+
+            if(!isClosed)
+                return sum;
+
+
+            const d =
+                new Date(
+                    item.closedAt
+                );
+
+
+            if(
+                Number.isNaN(
+                    d.getTime()
+                )
+            ){
 
                 return sum;
 
-            },
+            }
 
-            0
 
-        );
+            if(
+                d.getFullYear() !== year ||
+                d.getMonth() !== month ||
+                d.getDate() !== day
+            ){
 
-    }
+                return sum;
 
+            }
+
+
+            return sum +
+                number(
+                    item.pnl,
+                    0
+                );
+
+        },
+
+        0
+
+    );
+
+}
 
     /* =====================================================
        GÜNLÜK ZARAR KONTROLÜ
