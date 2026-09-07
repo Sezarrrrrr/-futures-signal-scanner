@@ -6544,57 +6544,103 @@ function getTodayPnL(){
 
 }
 
-    /* =====================================================
-       GÜNLÜK ZARAR KONTROLÜ
-    ===================================================== */
 
-    function dailyLossAllowed(){
+   /* =====================================================
+   GÜNLÜK ZARAR KONTROLÜ
+   V10.5 Stabil
+===================================================== */
 
-        const capital =
-            Math.max(
-                number(cfg.capital,100),
-                1
-            );
+function dailyLossAllowed(){
 
-
-        const maxLossPct =
-            Math.max(
-                number(
-                    cfg.maxDailyLossPercent,
-                    3
-                ),
-                0
-            );
+    const capital =
+        Math.max(
+            number(
+                cfg.capital,
+                100
+            ),
+            1
+        );
 
 
-        const maxLoss =
-            capital *
-            maxLossPct /
-            100;
+    const maxLossPct =
+        Math.max(
+            number(
+                cfg.maxDailyLossPercent,
+                3
+            ),
+            0
+        );
 
 
-        const todayPnL =
-            getTodayPnL();
+    const maxLoss =
+        capital *
+        maxLossPct /
+        100;
+
+
+    const todayPnL =
+        getTodayPnL();
+
+
+    /*
+     * Günlük zarar limiti aşıldıysa
+     * yeni işlem açma.
+     *
+     * Aynı engeli her tick'te
+     * tekrar tekrar sayma.
+     */
+
+    if(
+        todayPnL <= -maxLoss
+    ){
+
+        const reason =
+            "Günlük zarar limiti aşıldı.";
+
+
+        state.blockedReason =
+            reason;
 
 
         if(
-            todayPnL <= -maxLoss
+            state.lastBlockedReason !==
+            reason
         ){
-
-            state.blockedReason =
-                "Günlük zarar limiti aşıldı.";
 
             state.totalBlocked++;
 
-            return false;
+
+            state.lastBlockedReason =
+                reason;
 
         }
 
 
-        return true;
+        return false;
 
     }
 
+
+    /*
+     * Limit tekrar uygun hale geldiyse
+     * sayaç kilidini temizle.
+     */
+
+    if(
+        state.lastBlockedReason ===
+        "Günlük zarar limiti aşıldı."
+    ){
+
+        state.lastBlockedReason =
+            "";
+
+    }
+
+
+    return true;
+
+}
+   
 
     /* =====================================================
        RİSK KONTROLÜ
