@@ -2952,7 +2952,7 @@ function savePaperTrade(){
 
     );
 
-}
+
 
     /* =====================================================
        TEMEL KONTROLLER
