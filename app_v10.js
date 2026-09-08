@@ -1,7 +1,6 @@
 /* =========================================================
    FUTURES SIGNAL SCANNER V9
    Binance Futures • Live Scanner • Paper Trading Engine
-   V9
    ========================================================= */
 
 const API='https://fapi.binance.com';
@@ -17,7 +16,6 @@ let lastScan=0;
 
 let scanTimer=null;
 let positionTimer=null;
-
 let currentView='scan';
 let openDetailSymbol=null;
 
@@ -33,18 +31,13 @@ const n=v=>{
     return Number.isFinite(x)?x:0;
 };
 
+
 const fmt=v=>{
     return n(v).toLocaleString('tr-TR',{
         maximumFractionDigits:8
     });
 };
 
-const fmtPnl=v=>{
-    return n(v).toLocaleString('tr-TR',{
-        minimumFractionDigits:2,
-        maximumFractionDigits:2
-    });
-};
 
 const compact=v=>{
 
@@ -65,8 +58,10 @@ const compact=v=>{
     return v.toFixed(0);
 };
 
+
 const sleep=ms=>
     new Promise(resolve=>setTimeout(resolve,ms));
+
 
 function escapeHtml(v){
 
@@ -76,6 +71,7 @@ function escapeHtml(v){
         .replaceAll('>','&gt;')
         .replaceAll('"','&quot;')
         .replaceAll("'","&#039;");
+
 }
 
 
@@ -95,8 +91,13 @@ async function api(path,p={}){
         cache:'no-store'
     });
 
-    if(!r.ok)
-        throw Error(r.status+' '+path);
+    if(!r.ok){
+
+        throw Error(
+            r.status+' '+path
+        );
+
+    }
 
     return r.json();
 }
@@ -117,8 +118,13 @@ function ema(a,p){
         a.slice(0,p)
         .reduce((x,y)=>x+y,0)/p;
 
-    for(let i=p;i<a.length;i++)
-        e=a[i]*k+e*(1-k);
+    for(let i=p;i<a.length;i++){
+
+        e=
+            a[i]*k+
+            e*(1-k);
+
+    }
 
     return e;
 }
@@ -134,10 +140,12 @@ function rsi(a,p=14){
 
     for(let i=1;i<=p;i++){
 
-        const d=a[i]-a[i-1];
+        const d=
+            a[i]-a[i-1];
 
         g+=d>0?d:0;
         l+=d<0?-d:0;
+
     }
 
     let ag=g/p;
@@ -145,10 +153,15 @@ function rsi(a,p=14){
 
     for(let i=p+1;i<a.length;i++){
 
-        const d=a[i]-a[i-1];
+        const d=
+            a[i]-a[i-1];
 
-        ag=(ag*(p-1)+(d>0?d:0))/p;
-        al=(al*(p-1)+(d<0?-d:0))/p;
+        ag=
+            (ag*(p-1)+(d>0?d:0))/p;
+
+        al=
+            (al*(p-1)+(d<0?-d:0))/p;
+
     }
 
     if(al===0)
@@ -170,10 +183,15 @@ function atr(c,p=14){
         t.push(
             Math.max(
                 c[i].h-c[i].l,
-                Math.abs(c[i].h-c[i-1].c),
-                Math.abs(c[i].l-c[i-1].c)
+                Math.abs(
+                    c[i].h-c[i-1].c
+                ),
+                Math.abs(
+                    c[i].l-c[i-1].c
+                )
             )
         );
+
     }
 
     return t
@@ -185,28 +203,37 @@ function atr(c,p=14){
 function macd(a){
 
     if(a.length<35)
-        return{h:0,m:0,s:0};
+        return{h:0};
 
     const vals=[];
 
     for(let i=26;i<=a.length;i++){
 
-        const x=a.slice(0,i);
+        const x=
+            a.slice(0,i);
 
-        const fast=ema(x,12);
-        const slow=ema(x,26);
+        const fast=
+            ema(x,12);
 
-        vals.push((fast||0)-(slow||0));
+        const slow=
+            ema(x,26);
+
+        vals.push(
+            (fast||0)-(slow||0)
+        );
+
     }
 
-    const m=vals.at(-1)||0;
-    const s=ema(vals,9)||0;
+    const m=
+        vals.at(-1)||0;
+
+    const s=
+        ema(vals,9)||0;
 
     return{
-        h:m-s,
-        m,
-        s
+        h:m-s
     };
+
 }
 
 
@@ -221,27 +248,43 @@ function parseK(r){
         v:+x[5]
 
     }));
+
 }
 
 
 function trend(c){
 
-    const a=c.map(x=>x.c);
+    const a=
+        c.map(x=>x.c);
 
-    const e20=ema(a,20);
-    const e50=ema(a,50);
-    const e200=ema(a,200);
+    const e20=
+        ema(a,20);
 
-    const p=a.at(-1);
+    const e50=
+        ema(a,50);
 
-    if(!e20||!e50||!e200||!p){
+    const e200=
+        ema(a,200);
+
+    const p=
+        a.at(-1);
+
+    if(
+        !e20||
+        !e50||
+        !e200||
+        !p
+    ){
 
         return{
+
             s:0,
             e20,
             e50,
             e200
+
         };
+
     }
 
     const s=
@@ -250,11 +293,14 @@ function trend(c){
         (p>e20?1:-1);
 
     return{
+
         s,
         e20,
         e50,
         e200
+
     };
+
 }
 
 
@@ -280,6 +326,7 @@ function clamp(x){
         0,
         Math.min(100,x)
     );
+
 }
 
 
@@ -292,19 +339,26 @@ function side(x){
         return'SHORT';
 
     return'NÖTR';
+
 }
 
 
 function candleBias(c){
 
-    const x=c.at(-1);
+    const x=
+        c.at(-1);
 
     if(!x)
         return 0;
 
-    const body=Math.abs(x.c-x.o);
+    const body=
+        Math.abs(x.c-x.o);
 
-    const range=Math.max(x.h-x.l,1e-12);
+    const range=
+        Math.max(
+            x.h-x.l,
+            1e-12
+        );
 
     const upper=
         x.h-Math.max(x.o,x.c);
@@ -312,16 +366,28 @@ function candleBias(c){
     const lower=
         Math.min(x.o,x.c)-x.l;
 
-    if(x.c>x.o&&body/range>.55)
+    if(
+        x.c>x.o&&
+        body/range>.55
+    )
         return 1;
 
-    if(x.c<x.o&&body/range>.55)
+    if(
+        x.c<x.o&&
+        body/range>.55
+    )
         return -1;
 
-    if(lower/range>.45&&x.c>=x.o)
+    if(
+        lower/range>.45&&
+        x.c>=x.o
+    )
         return 1;
 
-    if(upper/range>.45&&x.c<=x.o)
+    if(
+        upper/range>.45&&
+        x.c<=x.o
+    )
         return -1;
 
     return 0;
@@ -329,7 +395,7 @@ function candleBias(c){
 
 
 /* =========================================================
-   V9 SİNYAL ANALİZİ
+   SİNYAL ANALİZİ
    ========================================================= */
 
 async function analyze(symbol,t){
@@ -370,98 +436,151 @@ async function analyze(symbol,t){
             symbol
         }),
 
-        api('/futures/data/globalLongShortAccountRatio',{
-            symbol,
-            period:'5m',
-            limit:1,
-            contractType:'PERPETUAL'
-        })
+        api(
+            '/futures/data/globalLongShortAccountRatio',
+            {
+                symbol,
+                period:'5m',
+                limit:1,
+                contractType:'PERPETUAL'
+            }
+        )
 
     ]);
 
-    const c5=parseK(r5);
-    const c15=parseK(r15);
-    const c1=parseK(r1);
 
-    const a5=c5.map(x=>x.c);
-    const a15=c15.map(x=>x.c);
-    const a1=c1.map(x=>x.c);
+    const c5=
+        parseK(r5);
 
-    const t5=trend(c5);
-    const t15=trend(c15);
-    const t1=trend(c1);
+    const c15=
+        parseK(r15);
 
-    const r5v=rsi(a5);
-    const r15v=rsi(a15);
-    const r1v=rsi(a1);
+    const c1=
+        parseK(r1);
 
-    const m5=macd(a5);
-    const m15=macd(a15);
-    const m1=macd(a1);
 
-    const volume=vr(c5);
-    const A=atr(c5);
+    const a5=
+        c5.map(x=>x.c);
 
-    const fund=n(f?.[0]?.fundingRate);
+    const a15=
+        c15.map(x=>x.c);
 
-    const oiNow=n(oi?.openInterest);
+    const a1=
+        c1.map(x=>x.c);
 
-    const lsr=n(ls?.[0]?.longShortRatio);
+
+    const t5=
+        trend(c5);
+
+    const t15=
+        trend(c15);
+
+    const t1=
+        trend(c1);
+
+
+    const r5v=
+        rsi(a5);
+
+    const r15v=
+        rsi(a15);
+
+    const r1v=
+        rsi(a1);
+
+
+    const m5=
+        macd(a5);
+
+    const m15=
+        macd(a15);
+
+    const m1=
+        macd(a1);
+
+
+    const volume=
+        vr(c5);
+
+    const A=
+        atr(c5);
+
+
+    const fund=
+        n(f?.[0]?.fundingRate);
+
+    const oiNow=
+        n(oi?.openInterest);
+
+    const lsr=
+        n(ls?.[0]?.longShortRatio);
+
 
     const price=
         n(t?.c)||
         a5.at(-1);
 
-    const e1=ema(a1,20);
-    const e150=ema(a1,50);
 
-    const cb=candleBias(c5);
+    const e1=
+        ema(a1,20);
+
+    const e150=
+        ema(a1,50);
+
 
     let longPts=0;
     let shortPts=0;
 
 
-    /* =====================================================
-       TREND
-       ===================================================== */
+    /* TREND */
 
     if(t1.s>0)
         longPts+=20;
-    else if(t1.s<0)
+    else
         shortPts+=20;
+
 
     if(t15.s>0)
         longPts+=15;
-    else if(t15.s<0)
+    else
         shortPts+=15;
+
 
     if(t5.s>0)
         longPts+=10;
-    else if(t5.s<0)
+    else
         shortPts+=10;
 
 
-    /* =====================================================
-       RSI
-       ===================================================== */
+    /* RSI */
 
-    if(r1v>=52&&r1v<=70)
+    if(
+        r1v>=52&&
+        r1v<=70
+    )
         longPts+=10;
 
-    else if(r1v>=30&&r1v<=48)
+    else if(
+        r1v>=30&&
+        r1v<=48
+    )
         shortPts+=10;
 
 
-    if(r15v>=52&&r15v<=72)
+    if(
+        r15v>=52&&
+        r15v<=72
+    )
         longPts+=7;
 
-    else if(r15v>=28&&r15v<=48)
+    else if(
+        r15v>=28&&
+        r15v<=48
+    )
         shortPts+=7;
 
 
-    /* =====================================================
-       MACD
-       ===================================================== */
+    /* MACD */
 
     if(m1.h>0)
         longPts+=8;
@@ -477,9 +596,7 @@ async function analyze(symbol,t){
         shortPts+=7;
 
 
-    /* =====================================================
-       EMA
-       ===================================================== */
+    /* EMA */
 
     if(
         price>e1&&
@@ -494,9 +611,7 @@ async function analyze(symbol,t){
         shortPts+=8;
 
 
-    /* =====================================================
-       VOLUME
-       ===================================================== */
+    /* VOLUME */
 
     if(volume>=1.25){
 
@@ -505,12 +620,11 @@ async function analyze(symbol,t){
 
         else if(t5.s<0)
             shortPts+=7;
+
     }
 
 
-    /* =====================================================
-       FUNDING
-       ===================================================== */
+    /* FUNDING */
 
     if(fund>.0005)
         shortPts+=4;
@@ -519,20 +633,22 @@ async function analyze(symbol,t){
         longPts+=4;
 
 
-    /* =====================================================
-       LONG / SHORT RATIO
-       ===================================================== */
+    /* LONG SHORT */
 
     if(lsr>1.25)
         shortPts+=4;
 
-    else if(lsr&&lsr<.8)
+    else if(
+        lsr&&
+        lsr<.8
+    )
         longPts+=4;
 
 
-    /* =====================================================
-       CANDLE
-       ===================================================== */
+    /* CANDLE */
+
+    const cb=
+        candleBias(c5);
 
     if(cb>0)
         longPts+=4;
@@ -541,25 +657,22 @@ async function analyze(symbol,t){
         shortPts+=4;
 
 
-    /* =====================================================
-       HAM SKOR
-       ===================================================== */
-
-    const rawScore=
-        50+
-        (longPts-shortPts)*.5;
+    /* SCORE */
 
     const score=
         clamp(
-            Math.round(rawScore)
+            Math.round(
+                50+
+                (longPts-shortPts)*.5
+            )
         );
 
-    const s=side(score);
+
+    const s=
+        side(score);
 
 
-    /* =====================================================
-       TEYİT
-       ===================================================== */
+    /* CONFIRMATION */
 
     const alignedLong=
         t1.s>0&&
@@ -567,6 +680,7 @@ async function analyze(symbol,t){
         t5.s>0&&
         cb>=0&&
         m5.h>=0;
+
 
     const alignedShort=
         t1.s<0&&
@@ -576,87 +690,22 @@ async function analyze(symbol,t){
         m5.h<=0;
 
 
-    const strongLong=
-        s==='LONG'&&
-        score>=65&&
-        alignedLong;
-
-    const strongShort=
-        s==='SHORT'&&
-        score<=35&&
-        alignedShort;
-
-
-    let confirmation='İZLE';
-
-    if(strongLong)
-        confirmation='LONG TEYİT EDİLDİ';
-
-    else if(strongShort)
-        confirmation='SHORT TEYİT EDİLDİ';
-
-    else if(s==='LONG')
-        confirmation='LONG TEYİT BEKLENİYOR';
-
-    else if(s==='SHORT')
-        confirmation='SHORT TEYİT BEKLENİYOR';
+    const confirmation=
+        s==='LONG'&&alignedLong
+            ?'LONG TEYİT EDİLDİ'
+            :s==='SHORT'&&alignedShort
+            ?'SHORT TEYİT EDİLDİ'
+            :s==='NÖTR'
+            ?'İZLE'
+            :'TEYİT BEKLENİYOR';
 
 
-    /* =====================================================
-       V9 KALİTE
-       ===================================================== */
-
-    let quality='ZAYIF';
-
-    let qualityScore=0;
-
-    if(Math.abs(score-50)>=10)
-        qualityScore+=1;
-
-    if(Math.abs(score-50)>=20)
-        qualityScore+=1;
-
-    if(volume>=1.25)
-        qualityScore+=1;
-
-    if(
-        s==='LONG'&&
-        alignedLong
-    )
-        qualityScore+=2;
-
-    if(
-        s==='SHORT'&&
-        alignedShort
-    )
-        qualityScore+=2;
-
-    if(qualityScore>=5)
-        quality='ÇOK GÜÇLÜ';
-
-    else if(qualityScore>=4)
-        quality='GÜÇLÜ';
-
-    else if(qualityScore>=2)
-        quality='ORTA';
-
-
-    /* =====================================================
-       RİSK
-       ===================================================== */
-
-    const atrRisk=
-        A>0
-            ?A*1.5
-            :price*.004;
-
-    const minimumRisk=
-        price*.004;
+    /* RISK */
 
     const risk=
         Math.max(
-            atrRisk,
-            minimumRisk
+            A*1.5,
+            price*.004
         );
 
 
@@ -668,23 +717,32 @@ async function analyze(symbol,t){
 
     if(s==='SHORT'){
 
-        sl=price+risk;
+        sl=
+            price+risk;
 
-        tp1=price-risk;
+        tp1=
+            price-risk;
 
-        tp2=price-risk*2;
+        tp2=
+            price-risk*2;
 
-        tp3=price-risk*3;
+        tp3=
+            price-risk*3;
 
     }else{
 
-        sl=price-risk;
+        sl=
+            price-risk;
 
-        tp1=price+risk;
+        tp1=
+            price+risk;
 
-        tp2=price+risk*2;
+        tp2=
+            price+risk*2;
 
-        tp3=price+risk*3;
+        tp3=
+            price+risk*3;
+
     }
 
 
@@ -734,21 +792,11 @@ async function analyze(symbol,t){
 
         score,
 
-        rawScore,
-
         side:s,
 
         confidence:score,
 
         confirmation,
-
-        quality,
-
-        qualityScore,
-
-        alignedLong,
-
-        alignedShort,
 
         entry:price,
 
@@ -790,16 +838,10 @@ async function analyze(symbol,t){
 
         trend5:t5.s,
 
-        macd1:m1.h,
-
-        macd15:m15.h,
-
-        macd5:m5.h,
-
-        candleBias:cb,
-
         updated:Date.now()
+
     };
+
 }
 
 
@@ -809,7 +851,8 @@ async function analyze(symbol,t){
 
 function render(){
 
-    const list=$('list');
+    const list=
+        $('list');
 
     if(!list)
         return;
@@ -845,6 +888,7 @@ function render(){
                     x.side==='LONG'&&
                     x.score>=min
             ).length;
+
     }
 
 
@@ -856,1374 +900,162 @@ function render(){
                     x.side==='SHORT'&&
                     100-x.score>=min
             ).length;
+
     }
 
 
     if($('count'))
-        $('count').textContent=tickers.size;
+        $('count').textContent=
+            tickers.size;
 
-
-    rows=
-        rows.filter(
-            x=>
-                x.side==='NÖTR'||
-                x.score>=min||
-                100-x.score>=min
-        );
-
-
-    if(!rows.length){
-
-        list.innerHTML=
-            '<div class="empty">'+
-            'Henüz güçlü sinyal yok. '+
-            'Tarama devam ediyor…'+
-            '</div>';
-
-        return;
-    }
-
-
-    list.innerHTML=
-        rows
-        .slice(0,12)
-        .map(x=>{
-
-            const cls=
-                x.side==='LONG'
-                    ?'lb'
-                    :x.side==='SHORT'
-                    ?'sb'
-                    :'watch';
-
-
-            const bar=
-                x.side==='LONG'
-                    ?x.score
-                    :x.side==='SHORT'
-                    ?100-x.score
-                    :50;
-
-
-            const barColor=
-                x.side==='LONG'
-                    ?'#49e49a'
-                    :x.side==='SHORT'
-                    ?'#ff6678'
-                    :'#f4cf62';
-
-
-            return`
-
-<article class="coin">
-
-<div class="row">
-
-<div>
-
-<div class="symbol">
-${escapeHtml(x.symbol)}
-</div>
-
-<div class="muted">
-${escapeHtml(x.confirmation)}
-•
-${escapeHtml(x.quality)}
-•
-Hacim $${compact(x.quote)}
-</div>
-
-</div>
-
-<div style="text-align:right">
-
-<div class="price">
-${fmt(x.price)}
-</div>
-
-<div class="${x.change>=0?'green':'red'}">
-${x.change>=0?'+':''}${x.change.toFixed(2)}%
-</div>
-
-</div>
-
-<span class="badge ${cls}">
-${x.side} • ${x.score}/100
-</span>
-
-</div>
-
-
-<div class="bar">
-
-<i style="
-width:${bar}%;
-background:${barColor}
-"></i>
-
-</div>
-
-
-<div class="meta">
-
-<span>
-RSI 1H ${x.rsi1.toFixed(0)}
-</span>
-
-<span>
-RSI 15M ${x.rsi15.toFixed(0)}
-</span>
-
-<span>
-Hacim x${x.vr.toFixed(1)}
-</span>
-
-<span>
-Funding ${(x.funding*100).toFixed(3)}%
-</span>
-
-</div>
-
-
-<button
-class="action"
-onclick="toggleDetail('${x.symbol}')">
-
-İşlem planını göster
-
-</button>
-
-
-<div
-id="d-${x.symbol}"
-class="detail">
-
-<div class="muted">
-
-1 saatlik plan •
-
-Teknik Güç ${x.score}/100 •
-
-<b>${escapeHtml(x.confirmation)}</b> •
-
-${escapeHtml(x.quality)} •
-
-${x.lev}x
-
-</div>
-
-
-<div class="plan">
-
-<div class="box">
-<span>GİRİŞ</span>
-<b>${fmt(x.entry)}</b>
-</div>
-
-<div class="box">
-<span>SL</span>
-<b class="red">${fmt(x.sl)}</b>
-</div>
-
-<div class="box">
-<span>TP1</span>
-<b class="green">${fmt(x.tp1)}</b>
-</div>
-
-<div class="box">
-<span>TP2</span>
-<b class="green">${fmt(x.tp2)}</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>TP3</span>
-<b class="green">${fmt(x.tp3)}</b>
-</div>
-
-<div class="box">
-<span>R/R TP1</span>
-<b>${x.rr1.toFixed(2)}</b>
-</div>
-
-<div class="box">
-<span>R/R TP2</span>
-<b>${x.rr2.toFixed(2)}</b>
-</div>
-
-<div class="box">
-<span>R/R TP3</span>
-<b>${x.rr3.toFixed(2)}</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>ATR</span>
-<b>${x.atrPct.toFixed(2)}%</b>
-</div>
-
-<div class="box">
-<span>OPEN INTEREST</span>
-<b>${compact(x.oi)}</b>
-</div>
-
-<div class="box">
-<span>LONG/SHORT</span>
-<b>${x.lsr?x.lsr.toFixed(2):'—'}</b>
-</div>
-
-<div class="box">
-<span>5M RSI</span>
-<b>${x.rsi5.toFixed(0)}</b>
-</div>
-
-</div>
-
-
-<div class="grid">
-
-<div class="box">
-<span>5M MACD</span>
-<b class="${x.macd5>=0?'green':'red'}">
-${x.macd5>=0?'+':''}${fmt(x.macd5)}
-</b>
-</div>
-
-<div class="box">
-<span>15M MACD</span>
-<b class="${x.macd15>=0?'green':'red'}">
-${x.macd15>=0?'+':''}${fmt(x.macd15)}
-</b>
-</div>
-
-<div class="box">
-<span>1H MACD</span>
-<b class="${x.macd1>=0?'green':'red'}">
-${x.macd1>=0?'+':''}${fmt(x.macd1)}
-</b>
-</div>
-
-<div class="box">
-<span>TEYİT</span>
-<b>
-${x.alignedLong||x.alignedShort?'EVET':'HAYIR'}
-</b>
-</div>
-
-</div>
-
-
-<div class="meta">
-
-<span>
-5M ${x.trend5>0?'↑':'↓'}
-</span>
-
-<span>
-15M ${x.trend15>0?'↑':'↓'}
-</span>
-
-<span>
-1H ${x.trend1>0?'↑':'↓'}
-</span>
-
-<span>
-${new Date(x.updated)
-    .toLocaleTimeString('tr-TR')}
-</span>
-
-</div>
-
-
-<button
-class="action"
-onclick="prepareTrade('${x.symbol}')">
-
-Bu sinyalle İşlem'e git
-
-</button>
-
-
-</div>
-
-</article>
-
-`;
-
-        })
-        .join('');
-
-
-    if(openDetailSymbol){
-
-        const d=
-            document.getElementById(
-                'd-'+openDetailSymbol
-            );
-
-        if(d)
-            d.classList.add('open');
-    }
-}
-
-
-function toggleDetail(symbol){
-
-    const el=
-        document.getElementById(
-            'd-'+symbol
-        );
-
-    if(!el)
-        return;
-
-
-    const wasOpen=
-        el.classList.contains('open');
-
-
-    document
-        .querySelectorAll('.detail.open')
-        .forEach(x=>{
-            x.classList.remove('open');
-        });
-
-
-    if(wasOpen){
-
-        openDetailSymbol=null;
-
-    }else{
-
-        el.classList.add('open');
-
-        openDetailSymbol=symbol;
-    }
-}
-
-
-function setFilter(v){
-
-    filter=v;
-
-    document
-        .querySelectorAll('.tabs button')
-        .forEach(b=>
-            b.classList.remove('on')
-        );
-
-
-    const id=
-        v==='all'
-            ?'all'
-            :v==='long'
-            ?'longTab'
-            :'shortTab';
-
-
-    $(id)?.classList.add('on');
-
-    render();
-}
-
-
-/* =========================================================
-   ALT MENÜ
-   ========================================================= */
-
-function showView(v){
-
-    currentView=v;
-
-
-    [
-        'scan',
-        'markets',
-        'trade',
-        'history',
-        'performance',
-        'settings'
-    ].forEach(x=>{
-
-        const el=$(x+'View');
-
-        if(el){
-
-            el.classList.toggle(
-                'hidden',
-                x!==v
-            );
-        }
-    });
-
-
-    document
-        .querySelectorAll('.navbtn')
-        .forEach(b=>{
-
-            b.classList.toggle(
-                'active',
-                b.dataset.view===v
-            );
-        });
-
-
-    if(v==='markets')
-        renderMarkets();
-
-
-    if(v==='trade')
-        populateTrade();
-
-
-    if(v==='history')
-        renderHistory();
-
-
-    if(v==='performance')
-        renderPerformance();
-
-
-    if(v==='settings'){
-
-        if($('minScore'))
-            $('minScore').value=
-                localStorage.getItem(
-                    'minScore'
-                )||65;
-
-
-        if($('scanSeconds'))
-            $('scanSeconds').value=
-                localStorage.getItem(
-                    'scanSeconds'
-                )||90;
-    }
-}
-
-
-/* =========================================================
-   PİYASALAR
-   ========================================================= */
-
-function renderMarkets(){
-
-    const el=$('marketList');
-
-    if(!el)
-        return;
-
-
-    const a=
-        [...tickers.values()]
-        .filter(
-            x=>
-                x.s?.endsWith('USDT')&&
-                n(x.q)>1000000
-        )
-        .sort(
-            (a,b)=>
-                n(b.q)-n(a.q)
-        )
-        .slice(0,30);
-
-
-    el.innerHTML=
-        a.length
-
-            ?a.map(x=>`
-
-<div class="marketrow">
-
-<b>${escapeHtml(x.s)}</b>
-
-<span>
-${fmt(x.c)}
-</span>
-
-<span class="${n(x.P)>=0?'green':'red'}">
-${n(x.P)>=0?'+':''}${n(x.P).toFixed(2)}%
-</span>
-
-</div>
-
-`).join('')
-
-            :'<div class="empty">'+
-             'Canlı piyasa verisi bekleniyor…'+
-             '</div>';
-}
-
-
-/* =========================================================
-   PAPER STORAGE
-   ========================================================= */
-
-function getOpenPosition(){
-
-    try{
-
-        const raw=
-            localStorage.getItem(
-                'openPaperPosition'
-            );
-
-        if(!raw)
-            return null;
-
-        const p=JSON.parse(raw);
-
-        if(!p||!p.symbol)
-            return null;
-
-        return normalizePosition(p);
-
-    }catch(_){
-
-        return null;
-    }
-}
-
-
-/* =========================================================
-   V10.4 POSITION NORMALIZER
-   ---------------------------------------------------------
-   V9 + V10 + V10.4 alanlarını korur.
-   Pozisyon okunurken V10 alanlarının kaybolmasını engeller.
-========================================================= */
-
-function normalizePosition(p){
-
-    if(!p || !p.symbol)
-        return null;
-
-
-    const entry =
-        n(p.entry);
-
-
-    const lev =
-        n(p.lev) || 1;
-
-
-    const capital =
-        n(p.capital);
-
-
-    const notional =
-        n(p.notional) ||
-        (
-            capital > 0
-                ? capital * lev
-                : 0
-        );
-
-
-    /*
-     * V10.4 quantity
-     *
-     * Önce kayıtlı quantity kullanılır.
-     * Yoksa initialQuantity.
-     * O da yoksa notional / entry.
-     */
-    let initialQuantity =
-        n(p.initialQuantity);
-
-
-    if(initialQuantity <= 0){
-
-        initialQuantity =
-            entry > 0 &&
-            notional > 0
-                ? notional / entry
-                : 0;
-
-    }
-
-
-    let quantity =
-        n(p.quantity);
-
-
-    if(quantity <= 0){
-
-        quantity =
-            initialQuantity;
-
-    }
-
-
-    return{
-
-        /* =================================================
-           TEMEL
-        ================================================= */
-
-        id:
-            p.id ||
-            Date.now(),
-
-
-        symbol:
-            p.symbol,
-
-
-        side:
-            p.side === 'SHORT'
-                ? 'SHORT'
-                : 'LONG',
-
-
-        score:
-            Number.isFinite(
-                Number(p.score)
-            )
-                ? n(p.score)
-                : null,
-
-
-        confirmation:
-            p.confirmation || '',
-
-
-        quality:
-            p.quality || '',
-
-
-        /* =================================================
-           FİYATLAR
-        ================================================= */
-
-        entry,
-
-        currentPrice:
-            n(p.currentPrice) ||
-            entry,
-
-
-        initialSl:
-            n(p.initialSl) ||
-            n(p.sl),
-
-
-        sl:
-            n(p.sl),
-
-
-        tp1:
-            n(p.tp1),
-
-
-        tp2:
-            n(p.tp2),
-
-
-        tp3:
-            n(p.tp3),
-
-
-        /* =================================================
-           SERMAYE / KALDIRAÇ
-        ================================================= */
-
-        capital,
-
-        lev,
-
-        notional,
-
-
-        /* =================================================
-           QUANTITY
-        ================================================= */
-
-        initialQuantity,
-
-        quantity,
-
-
-        /* =================================================
-           TP DURUMLARI
-        ================================================= */
-
-        tp1Hit:
-            p.tp1Hit === true,
-
-
-        tp2Hit:
-            p.tp2Hit === true,
-
-
-        tp3Hit:
-            p.tp3Hit === true,
-
-
-        tp1At:
-            p.tp1At || null,
-
-
-        tp2At:
-            p.tp2At || null,
-
-
-        tp3At:
-            p.tp3At || null,
-
-
-        tp1Price:
-            n(p.tp1Price),
-
-
-        tp2Price:
-            n(p.tp2Price),
-
-
-        tp3Price:
-            n(p.tp3Price),
-
-
-        /* =================================================
-           BREAK EVEN
-        ================================================= */
-
-        breakEven:
-            p.breakEven === true ||
-            p.breakEvenActive === true,
-
-
-        breakEvenActive:
-            p.breakEvenActive === true ||
-            p.breakEven === true,
-
-
-        breakEvenPrice:
-            n(p.breakEvenPrice) ||
-            entry,
-
-
-        /* =================================================
-           TRAILING
-        ================================================= */
-
-        trailingActive:
-            p.trailingActive === true,
-
-
-        trailingStop:
-            n(p.trailingStop),
-
-
-        trailingR:
-            n(p.trailingR),
-
-
-        /* =================================================
-           PNL
-        ================================================= */
-
-        realizedPNL:
-            n(
-                p.realizedPNL ??
-                p.realizedNetPnl
-            ),
-
-
-        grossPNL:
-            n(
-                p.grossPNL ??
-                p.realizedGrossPnl
-            ),
-
-
-        commission:
-            n(
-                p.commission ??
-                p.realizedFees
-            ),
-
-
-        realizedGrossPnl:
-            n(
-                p.realizedGrossPnl ??
-                p.grossPNL
-            ),
-
-
-        realizedFees:
-            n(
-                p.realizedFees ??
-                p.commission
-            ),
-
-
-        realizedNetPnl:
-            n(
-                p.realizedNetPnl ??
-                p.realizedPNL
-            ),
-
-
-        /* =================================================
-           RİSK
-        ================================================= */
-
-        initialRiskDistance:
-            n(p.initialRiskDistance),
-
-
-        initialRiskPct:
-            n(p.initialRiskPct),
-
-
-        accountRiskPct:
-            n(p.accountRiskPct),
-
-
-        riskAmount:
-            n(p.riskAmount),
-
-
-        maxRiskPct:
-            n(p.maxRiskPct),
-
-
-        maxRiskWarning:
-            p.maxRiskWarning === true,
-
-
-        /* =================================================
-           TP PAYLARI
-        ================================================= */
-
-        remainingQtyPct:
-            p.remainingQtyPct !== undefined
-                ? n(p.remainingQtyPct)
-                : 1,
-
-
-        tp1QtyPct:
-            n(p.tp1QtyPct),
-
-
-        tp2QtyPct:
-            n(p.tp2QtyPct),
-
-
-        tp3QtyPct:
-            n(p.tp3QtyPct),
-
-
-        /* =================================================
-           LEGS
-        ================================================= */
-
-        legs:
-            p.legs || {
-
-                tp1:
-                    typeof v10EmptyLeg === 'function'
-                        ? v10EmptyLeg()
-                        : {},
-
-                tp2:
-                    typeof v10EmptyLeg === 'function'
-                        ? v10EmptyLeg()
-                        : {},
-
-                tp3:
-                    typeof v10EmptyLeg === 'function'
-                        ? v10EmptyLeg()
-                        : {}
-
-            },
-
-
-        /* =================================================
-           EVENTLER
-        ================================================= */
-
-        events:
-            Array.isArray(p.events)
-                ? p.events
-                : [],
-
-
-        /* =================================================
-           ZAMAN / DURUM
-        ================================================= */
-
-        openedAt:
-            p.openedAt ||
-            new Date().toISOString(),
-
-
-        status:
-            p.status ||
-            'Açık',
-
-
-        closed:
-            p.closed === true,
-
-
-        closedAt:
-            p.closedAt || null,
-
-
-        closeReason:
-            p.closeReason || '',
-
-
-        closePrice:
-            n(p.closePrice),
-
-
-        /* =================================================
-           PNL TAKİBİ
-        ================================================= */
-
-        maxPnl:
-            n(p.maxPnl),
-
-
-        minPnl:
-            n(p.minPnl),
-
-
-        lastPnl:
-            n(p.lastPnl),
-
-
-        updatedAt:
-            p.updatedAt ||
-            Date.now()
-
-    };
-
-}
-
-
-function saveOpenPosition(p){
-
-    localStorage.setItem(
-        'openPaperPosition',
-        JSON.stringify(p)
-    );
-}
-
-
-function clearOpenPosition(){
-
-    localStorage.removeItem(
-        'openPaperPosition'
-    );
-}
-
-
-function getHistory(){
-
-    try{
-
-        const h=
-            JSON.parse(
-                localStorage.getItem(
-                    'paperHistory'
-                )||'[]'
-            );
-
-        return Array.isArray(h)?h:[];
-
-    }catch(_){
-
-        return[];
-    }
-}
-
-
-function saveHistory(history){
-
-    localStorage.setItem(
-        'paperHistory',
-        JSON.stringify(
-            history.slice(0,500)
-        )
-    );
-}
-
-
-/* =========================================================
-   TRADE EKRANI
-   ========================================================= */
-
-function populateTrade(){
-
-    ensureV9TradeUI();
-
-
-    const list=
-        signals.filter(
-            x=>x.side!=='NÖTR'
-        );
-
-
-    const select=$('tradeCoin');
-
-    if(!select)
-        return;
-
-
-    const current=select.value;
-
-
-    select.innerHTML=
-        list.length
-
-            ?list.map(x=>`
-
-<option value="${escapeHtml(x.symbol)}">
-${escapeHtml(x.symbol)}
-•
-${x.side}
-${x.score}/100
-</option>
-
-`).join('')
-
-            :'<option value="">Henüz sinyal yok</option>';
-
-
-    const open=getOpenPosition();
-
-
-    if(open){
-
-        if(list.some(x=>x.symbol===open.symbol))
-            select.value=open.symbol;
-
-        loadPositionIntoTradeForm(open);
-
-    }else if(
-        current&&
-        list.some(x=>x.symbol===current)
-    ){
-
-        select.value=current;
-
-        applyTradeFromSelection();
-
-    }else{
-
-        applyTradeFromSelection();
-    }
-
-
-    renderOpenPosition();
-    renderTradeStats();
-}
-
-
-function applyTradeFromSelection(){
-
-    const open=getOpenPosition();
-
-    if(open)
-        return;
-
-
-    const select=$('tradeCoin');
-
-    if(!select)
-        return;
-
-
-    const x=
-        signals.find(
-            s=>s.symbol===select.value
-        );
-
-
-    if(!x)
-        return;
-
-
-    if($('tradeSide'))
-        $('tradeSide').value=x.side;
-
-    if($('tradeLev'))
-        $('tradeLev').value=x.lev;
-
-    if($('tradeEntry'))
-        $('tradeEntry').value=x.entry;
-
-    if($('tradeSL'))
-        $('tradeSL').value=x.sl;
-
-    if($('tradeTP1'))
-        $('tradeTP1').value=x.tp1;
-
-    if($('tradeTP2'))
-        $('tradeTP2').value=x.tp2;
-
-    if($('tradeTP3'))
-        $('tradeTP3').value=x.tp3;
-
-    calcTrade();
-}
-
-
-function loadPositionIntoTradeForm(p){
-
-    if($('tradeCoin'))
-        $('tradeCoin').value=p.symbol;
-
-    if($('tradeSide'))
-        $('tradeSide').value=p.side;
-
-    if($('tradeLev'))
-        $('tradeLev').value=p.lev;
-
-    if($('tradeEntry'))
-        $('tradeEntry').value=p.entry;
-
-    if($('tradeSL'))
-        $('tradeSL').value=p.sl;
-
-    if($('tradeTP1'))
-        $('tradeTP1').value=p.tp1;
-
-    if($('tradeTP2'))
-        $('tradeTP2').value=p.tp2;
-
-    if($('tradeTP3'))
         $('tradeTP3').value=p.tp3;
 
+    if($('tradeCapital'))
+        $('tradeCapital').value=p.capital||100;
+
     calcTrade();
 }
 
+
+/* =========================================================
+   TRADE HESAPLAMA
+   ========================================================= */
+
+function calcTrade(){
+
+    const entry=
+        n($('tradeEntry')?.value);
+
+    const sl=
+        n($('tradeSL')?.value);
+
+    const tp1=
+        n($('tradeTP1')?.value);
+
+    const lev=
+        n($('tradeLev')?.value)||1;
+
+    const capital=
+        n($('tradeCapital')?.value)||100;
+
+    const side=
+        $('tradeSide')?.value||'LONG';
+
+    if(!entry||!sl)
+        return;
+
+    const stopDistance=
+        Math.abs(entry-sl);
+
+    const riskPercent=
+        entry
+            ?stopDistance/entry*100
+            :0;
+
+    const riskBudget=
+        capital*.01;
+
+    const plannedRisk=
+        Math.min(
+            riskBudget,
+            capital*.02
+        );
+
+    const quantity=
+        stopDistance>0
+            ?plannedRisk/stopDistance
+            :0;
+
+    const notional=
+        quantity*entry;
+
+    const maxNotional=
+        capital*lev;
+
+    const safeQuantity=
+        Math.min(
+            quantity,
+            entry>0
+                ?maxNotional/entry
+                :0
+        );
+
+    if($('tradeRisk'))
+        $('tradeRisk').textContent=
+            riskPercent.toFixed(2)+'%';
+
+    if($('tradeRiskBudget'))
+        $('tradeRiskBudget').textContent=
+            riskBudget.toFixed(4)+' USDT';
+
+    if($('tradeQuantity'))
+        $('tradeQuantity').textContent=
+            safeQuantity.toFixed(6);
+
+    if($('tradeNotional'))
+        $('tradeNotional').textContent=
+            (safeQuantity*entry).toFixed(2)+' USDT';
+
+}
+
+
+/* =========================================================
+   TRADE HAZIRLAMA
+   ========================================================= */
 
 function prepareTrade(symbol){
 
     showView('trade');
 
-    const select=$('tradeCoin');
+    const select=
+        $('tradeCoin');
 
-    if(select)
-        select.value=symbol;
+    if(!select)
+        return;
+
+    select.value=symbol;
 
     applyTradeFromSelection();
 }
 
 
 /* =========================================================
-   TRADE UI
+   V10.5 RİSK TABANLI PAPER İŞLEM
    ========================================================= */
-
-function ensureV9TradeUI(){
-
-    const trade=$('tradeView');
-
-    if(!trade)
-        return;
-
-
-    if(!$('openPosition')){
-
-        const box=
-            document.createElement('div');
-
-        box.id='openPosition';
-
-        trade.appendChild(box);
-    }
-
-
-    if(!$('tradeStats')){
-
-        const stats=
-            document.createElement('div');
-
-        stats.id='tradeStats';
-
-        trade.appendChild(stats);
-    }
-}
-
-
-function ensureV9HistoryUI(){
-
-    const history=$('historyView');
-
-    if(!history)
-        return;
-
-
-    if(!$('historyStats')){
-
-        const box=
-            document.createElement('div');
-
-        box.id='historyStats';
-
-        const panel=
-            history.querySelector('.panel');
-
-        if(panel)
-            panel.insertBefore(
-                box,
-                $('historyList')
-            );
-    }
-}
-
-
-/* =========================================================
-   TRADE CALC
-   ========================================================= */
-
-function calcTrade(){
-
-    const cap=n($('tradeCapital')?.value);
-
-    const entry=n($('tradeEntry')?.value);
-
-    const sl=n($('tradeSL')?.value);
-
-    const tp=n($('tradeTP1')?.value);
-
-    const lev=n($('tradeLev')?.value);
-
-
-    if(!cap||!entry||!sl||!tp){
-
-        if($('calcResult'))
-            $('calcResult').innerHTML='';
-
-        return;
-    }
-
-
-    const riskPct=
-        Math.abs(entry-sl)/
-        entry*100;
-
-
-    const rr=
-        Math.abs(tp-entry)/
-        Math.max(
-            Math.abs(entry-sl),
-            1e-12
-        );
-
-
-    const notional=cap*lev;
-
-
-    if($('calcResult')){
-
-        $('calcResult').innerHTML=`
-
-<div class="box">
-
-Fiyat riski:
-<b>${riskPct.toFixed(2)}%</b>
-
-•
-
-TP1 R/R:
-<b>${rr.toFixed(2)}</b>
-
-•
-
-Pozisyon notional:
-<b>${fmt(notional)} USDT</b>
-
-</div>
-
-`;
-    }
-}
-
-
-/* =========================================================
-   V10.4 PAPER İŞLEM AÇ
-   ---------------------------------------------------------
-   Sermaye → Notional → Quantity zincirini garanti eder.
-========================================================= */
-
-
-/* =========================================================
-   V10.5 RİSK TABANLI PAPER İŞLEM AÇ
-   ---------------------------------------------------------
-   Sermaye → Risk % → SL mesafesi → Quantity → Notional
-   zincirini kullanır.
-
-   PAPER ONLY
-   Gerçek emir göndermez.
-========================================================= */
 
 function savePaperTrade(){
 
-    const symbol =
+    const symbol=
         $('tradeCoin')?.value;
 
-
-    const signal =
+    const signal=
         signals.find(
-            x => x.symbol === symbol
+            x=>x.symbol===symbol
         );
 
-
-    const side =
+    const side=
         $('tradeSide')?.value;
 
-
-    const entry =
+    const entry=
         n($('tradeEntry')?.value);
 
-
-    const sl =
+    const sl=
         n($('tradeSL')?.value);
 
-
-    const tp1 =
+    const tp1=
         n($('tradeTP1')?.value);
 
-
-    const tp2Input =
+    const tp2Input=
         n($('tradeTP2')?.value);
 
-
-    const tp3Input =
+    const tp3Input=
         n($('tradeTP3')?.value);
 
-
-    const lev =
+    const lev=
         n($('tradeLev')?.value);
 
-  
-    /* ---------------------------------------------------------
-       SERMAYE
-    --------------------------------------------------------- */
-
-    const capitalInput =
-        $('tradeCapital')?.value;
-
-
-    const capital =
-        Number(
-            String(
-                capitalInput ?? ''
-            )
-            .replace(',', '.')
-        );
+    const capital=
+        n($('tradeCapital')?.value)||100;
 
 
     /* ---------------------------------------------------------
@@ -2237,55 +1069,12 @@ function savePaperTrade(){
         );
 
         return;
-
     }
 
 
     if(
-        !Number.isFinite(entry) ||
-        entry <= 0
-    ){
-
-        alert(
-            'Geçerli bir giriş fiyatı gir.'
-        );
-
-        return;
-
-    }
-
-
-    if(
-        !Number.isFinite(sl) ||
-        sl <= 0
-    ){
-
-        alert(
-            'Geçerli bir Stop Loss gir.'
-        );
-
-        return;
-
-    }
-
-
-    if(
-        !Number.isFinite(tp1) ||
-        tp1 <= 0
-    ){
-
-        alert(
-            'Geçerli bir TP1 gir.'
-        );
-
-        return;
-
-    }
-
-
-    if(
-        side !== 'LONG' &&
-        side !== 'SHORT'
+        side!=='LONG'&&
+        side!=='SHORT'
     ){
 
         alert(
@@ -2293,27 +1082,52 @@ function savePaperTrade(){
         );
 
         return;
-
     }
 
 
-    if(
-        !Number.isFinite(lev) ||
-        lev <= 0
-    ){
+    if(!entry||entry<=0){
+
+        alert(
+            'Geçerli bir giriş fiyatı gir.'
+        );
+
+        return;
+    }
+
+
+    if(!sl||sl<=0){
+
+        alert(
+            'Geçerli bir Stop Loss gir.'
+        );
+
+        return;
+    }
+
+
+    if(!tp1||tp1<=0){
+
+        alert(
+            'Geçerli bir TP1 gir.'
+        );
+
+        return;
+    }
+
+
+    if(!lev||lev<=0){
 
         alert(
             'Geçerli bir kaldıraç seç.'
         );
 
         return;
-
     }
 
 
     if(
-        !Number.isFinite(capital) ||
-        capital <= 0
+        !Number.isFinite(capital)||
+        capital<=0
     ){
 
         alert(
@@ -2321,546 +1135,244 @@ function savePaperTrade(){
         );
 
         return;
-
     }
 
 
     /* ---------------------------------------------------------
-       TEK AÇIK POZİSYON
+       RİSK HESABI
     --------------------------------------------------------- */
 
+    const stopDistance=
+        Math.abs(
+            entry-sl
+        );
+
+
     if(
-        getOpenPosition()
+        !Number.isFinite(stopDistance)||
+        stopDistance<=0
     ){
 
         alert(
-            'Zaten açık bir PAPER pozisyon var.\n\n' +
-            'Önce mevcut pozisyonu kapat.'
+            'SL mesafesi geçersiz.'
         );
 
         return;
-
     }
 
 
-    /* ---------------------------------------------------------
-       GÜNCEL FİYAT
-    --------------------------------------------------------- */
-
-    const ticker =
-        tickers.get(symbol);
+    const riskPercent=
+        entry
+            ?stopDistance/entry*100
+            :0;
 
 
-    const currentPrice =
-        n(ticker?.c) ||
-        entry;
+    const riskBudget=
+        capital*.01;
 
 
-    /* =========================================================
-       V10.5 RİSK MOTORU
-    ========================================================= */
-
-    let riskPercent = 1;
-
-
-    /*
-     * Otomatik motor çalışıyorsa
-     * V10.2 ayarındaki risk yüzdesini kullan.
-     */
-
-    try{
-
-        if(
-            typeof FSSAutoV102 !==
-            'undefined' &&
-            FSSAutoV102?.getConfig
-        ){
-
-            const autoCfg =
-                FSSAutoV102.getConfig();
-
-
-            if(
-                Number.isFinite(
-                    Number(
-                        autoCfg?.riskPercent
-                    )
-                )
-            ){
-
-                riskPercent =
-                    Number(
-                        autoCfg.riskPercent
-                    );
-
-            }
-
-        }
-
-    }catch(error){
-
-        console.warn(
-            'V10.5 risk ayarı okunamadı:',
-            error
-        );
-
-    }
-
-
-    /*
-     * Güvenlik sınırı.
-     */
-
-    riskPercent =
+    const plannedRisk=
         Math.min(
-            3,
-            Math.max(
-                0.01,
-                riskPercent
-            )
+            riskBudget,
+            capital*.02
         );
 
 
-    /*
-     * İşlem başına izin verilen
-     * maksimum parasal risk.
-     *
-     * Örnek:
-     *
-     * Sermaye = 100
-     * Risk = %1
-     *
-     * Risk bütçesi = 1 USDT
-     */
-
-    const riskBudget =
-        capital *
-        riskPercent /
-        100;
-
-
-    /*
-     * Giriş → SL fiyat mesafesi.
-     */
-
-    const stopDistance =
-        Math.abs(
-            entry - sl
-        );
-
-
-    if(
-        !Number.isFinite(stopDistance) ||
-        stopDistance <= 0
-    ){
-
-        alert(
-            'Risk hesaplanamadı: ' +
-            'Giriş ve Stop Loss aynı olamaz.'
-        );
-
-        return;
-
-    }
-
-
-    /*
-     * Risk tabanlı quantity.
-     *
-     * Risk Budget / SL mesafesi
-     */
-
-    let initialQuantity =
-        riskBudget /
+    let quantity=
+        plannedRisk/
         stopDistance;
 
 
+    const maxNotional=
+        capital*lev;
+
+
+    const maxQuantity=
+        entry>0
+            ?maxNotional/entry
+            :0;
+
+
+    quantity=
+        Math.min(
+            quantity,
+            maxQuantity
+        );
+
+
     if(
-        !Number.isFinite(initialQuantity) ||
-        initialQuantity <= 0
+        !Number.isFinite(quantity)||
+        quantity<=0
     ){
 
         alert(
-            'Risk tabanlı pozisyon miktarı hesaplanamadı.'
+            'Hesaplanan işlem miktarı geçersiz.'
         );
 
         return;
-
     }
 
 
-    /*
-     * Maksimum notional:
-     *
-     * Sermaye × Kaldıraç
-     */
-
-    const maxNotional =
-        capital *
-        lev;
-
-
-    /*
-     * Risk bazlı notional.
-     */
-
-    let notional =
-        initialQuantity *
-        entry;
-
-
-    /*
-     * Güvenlik:
-     * Kaldıraç limitini hiçbir zaman aşma.
-     */
-
-    if(
-        notional >
-        maxNotional
-    ){
-
-        notional =
-            maxNotional;
-
-
-        initialQuantity =
-            notional /
-            entry;
-
-    }
-
-
-    /*
-     * Nihai quantity.
-     */
-
-    const quantity =
-        initialQuantity;
-
-
-    /*
-     * Gerçek planlanan SL riski.
-     *
-     * Notional kısıtlaması nedeniyle
-     * hedef riskten daha düşük olabilir.
-     */
-
-    const plannedRisk =
-        quantity *
-        stopDistance;
-
-
-    /* =========================================================
-       TP2 / TP3
-    ========================================================= */
-
-    const tpDistance =
-        Math.abs(
-            tp1 - entry
-        );
+    const notional=
+        quantity*entry;
 
 
     if(
-        !Number.isFinite(tpDistance) ||
-        tpDistance <= 0
+        !Number.isFinite(notional)||
+        notional<=0
     ){
 
         alert(
-            'TP1 mesafesi geçersiz.'
+            'Notional değeri geçersiz.'
         );
 
         return;
-
-    }
-
-
-    const tp2 =
-        tp2Input > 0
-            ? tp2Input
-            : (
-                side === 'LONG'
-                    ? entry +
-                      tpDistance * 2
-                    : entry -
-                      tpDistance * 2
-            );
-
-
-    const tp3 =
-        tp3Input > 0
-            ? tp3Input
-            : (
-                side === 'LONG'
-                    ? entry +
-                      tpDistance * 3
-                    : entry -
-                      tpDistance * 3
-            );
-
-
-    /* =========================================================
-       V10.5 PAPER POSITION
-    ========================================================= */
-
-    const position = {
-
-        id:
-            Date.now() +
-            '-' +
-            Math.random()
-                .toString(36)
-                .slice(2,8),
-
-
-        symbol,
-
-
-        side,
-
-
-        score:
-            signal
-                ? n(signal.score)
-                : null,
-
-
-        confirmation:
-            signal
-                ? signal.confirmation
-                : '',
-
-
-        quality:
-            signal
-                ? signal.quality
-                : '',
-
-
-        /* -----------------------------------------------------
-           FİYATLAR
-        ----------------------------------------------------- */
-
-        entry,
-
-
-        currentPrice,
-
-
-        sl,
-
-
-        tp1,
-
-
-        tp2,
-
-
-        tp3,
-
-
-        /* -----------------------------------------------------
-           SERMAYE
-        ----------------------------------------------------- */
-
-        capital,
-
-
-        lev,
-
-
-        /*
-         * Artık sabit:
-         * capital × leverage değil.
-         *
-         * Gerçek risk bazlı notional.
-         */
-
-        notional,
-
-
-        /* -----------------------------------------------------
-           RİSK
-        ----------------------------------------------------- */
-
-        riskPercent,
-
-
-        riskBudget,
-
-
-        stopDistance,
-
-
-        plannedRisk,
-
-
-        /* -----------------------------------------------------
-           MİKTAR
-        ----------------------------------------------------- */
-
-        initialQuantity,
-
-
-        quantity,
-
-
-        /* -----------------------------------------------------
-           TP DURUMLARI
-        ----------------------------------------------------- */
-
-        tp1Hit:false,
-
-
-        tp2Hit:false,
-
-
-        tp3Hit:false,
-
-
-        /* -----------------------------------------------------
-           RİSK YÖNETİMİ
-        ----------------------------------------------------- */
-
-        breakEven:false,
-
-
-        trailingActive:false,
-
-
-        /* -----------------------------------------------------
-           PNL
-        ----------------------------------------------------- */
-
-        realizedPNL:0,
-
-
-        grossPNL:0,
-
-
-        commission:0,
-
-
-        /* -----------------------------------------------------
-           OLAYLAR
-        ----------------------------------------------------- */
-
-        events:[],
-
-
-        /* -----------------------------------------------------
-           DURUM
-        ----------------------------------------------------- */
-
-        openedAt:
-            new Date()
-                .toISOString(),
-
-
-        status:'Açık',
-
-
-        /* -----------------------------------------------------
-           PNL TAKİBİ
-        ----------------------------------------------------- */
-
-        maxPnl:0,
-
-
-        minPnl:0,
-
-
-        lastPnl:0,
-
-
-        updatedAt:
-            Date.now()
-
-    };
-
-
-    /* =========================================================
-       SON GÜVENLİK KONTROLLERİ
-    ========================================================= */
-
-    if(
-        !Number.isFinite(
-            position.notional
-        ) ||
-        position.notional <= 0
-    ){
-
-        alert(
-            'Pozisyon oluşturulamadı: ' +
-            'notional geçersiz.'
-        );
-
-        return;
-
     }
 
 
     if(
-        !Number.isFinite(
-            position.quantity
-        ) ||
-        position.quantity <= 0
-    ){
-
-        alert(
-            'Pozisyon oluşturulamadı: ' +
-            'quantity geçersiz.'
-        );
-
-        return;
-
-    }
-
-
-    if(
-        position.notional >
+        notional>
         maxNotional
     ){
 
         alert(
-            'Güvenlik hatası: ' +
+            'Güvenlik hatası: '+
             'maksimum notional aşıldı.'
         );
 
         return;
-
     }
 
 
-    /* =========================================================
+    /* ---------------------------------------------------------
+       TP DEĞERLERİ
+    --------------------------------------------------------- */
+
+    const tp2=
+        tp2Input>0
+            ?tp2Input
+            :side==='LONG'
+            ?entry+stopDistance*2
+            :entry-stopDistance*2;
+
+
+    const tp3=
+        tp3Input>0
+            ?tp3Input
+            :side==='LONG'
+            ?entry+stopDistance*3
+            :entry-stopDistance*3;
+
+
+    /* ---------------------------------------------------------
+       POZİSYON
+    --------------------------------------------------------- */
+
+    const position={
+
+        id:
+            'PAPER-'+
+            Date.now(),
+
+        symbol,
+
+        side,
+
+        score:
+            signal?.score??null,
+
+        confirmation:
+            signal?.confirmation||'',
+
+        entry,
+
+        currentPrice:
+            entry,
+
+        sl,
+
+        tp1,
+
+        tp2,
+
+        tp3,
+
+        lev,
+
+        capital,
+
+        riskPercent,
+
+        riskBudget,
+
+        stopDistance,
+
+        plannedRisk,
+
+        notional,
+
+        initialQuantity:
+            quantity,
+
+        quantity,
+
+        remainingQuantity:
+            quantity,
+
+        tp1Hit:false,
+
+        tp2Hit:false,
+
+        tp3Hit:false,
+
+        slHit:false,
+
+        realizedPnl:0,
+
+        unrealizedPnl:0,
+
+        maxPnl:0,
+
+        minPnl:0,
+
+        openedAt:
+            new Date().toISOString(),
+
+        updatedAt:
+            Date.now(),
+
+        status:'Açık'
+
+    };
+
+
+    /* ---------------------------------------------------------
        KAYDET
-    ========================================================= */
+    --------------------------------------------------------- */
 
     saveOpenPosition(
         position
     );
 
 
-    /* =========================================================
+    /* ---------------------------------------------------------
        EKRANI GÜNCELLE
-    ========================================================= */
+    --------------------------------------------------------- */
 
     renderOpenPosition();
 
-
     renderHistory();
 
-
     renderTradeStats();
-
 
     showView(
         'trade'
     );
 
 
-    /* =========================================================
+    /* ---------------------------------------------------------
        V10.5 KONSOL
-    ========================================================= */
+    --------------------------------------------------------- */
 
     console.log(
         'V10.5 RISK POSITION:',
@@ -2952,1731 +1464,1202 @@ function savePaperTrade(){
 
     );
 
-
-
-    /* =====================================================
-       TEMEL KONTROLLER
-    ===================================================== */
-
-    if(!symbol){
-
-        alert(
-            'Lütfen coin seç.'
-        );
-
-        return;
-    }
-
-
-    if(!entry || entry <= 0){
-
-        alert(
-            'Geçerli bir giriş fiyatı gir.'
-        );
-
-        return;
-    }
-
-
-    if(!sl || sl <= 0){
-
-        alert(
-            'Geçerli bir Stop Loss gir.'
-        );
-
-        return;
-    }
-
-
-    if(!tp1 || tp1 <= 0){
-
-        alert(
-            'Geçerli bir TP1 gir.'
-        );
-
-        return;
-    }
-
-
-    if(!lev || lev <= 0){
-
-        alert(
-            'Geçerli bir kaldıraç seç.'
-        );
-
-        return;
-    }
-
-
-    if(!Number.isFinite(capital) || capital <= 0){
-
-        alert(
-            'Sermaye değeri geçersiz. '+
-            'Örneğin 100 USDT gir.'
-        );
-
-        return;
-    }
-
-
-    if(
-        side!=='LONG' &&
-        side!=='SHORT'
-    ){
-
-        alert(
-            'İşlem yönü LONG veya SHORT olmalı.'
-        );
-
-        return;
-    }
-
-
-    /* =====================================================
-       TEK AÇIK POZİSYON KONTROLÜ
-    ===================================================== */
-
-    if(getOpenPosition()){
-
-        alert(
-            'Zaten açık bir paper pozisyon var.\n\n'+
-            'Önce mevcut pozisyonu kapat.'
-        );
-
-        return;
-    }
-
-
-    /* =====================================================
-       GÜNCEL FİYAT
-    ===================================================== */
-
-    const ticker =
-        tickers.get(symbol);
-
-
-    const currentPrice =
-        n(ticker?.c) ||
-        entry;
-
-
-    /* =====================================================
-       NOTIONAL
-    ===================================================== */
-
-    const notional =
-        capital * lev;
-
-
-    /* =====================================================
-       POZİSYON MİKTARI
-       -----------------------------------------------------
-       Quantity = Notional / Entry
-    ===================================================== */
-
-    const initialQuantity =
-        notional / entry;
-
-
-    const quantity =
-        initialQuantity;
-
-
-    /* =====================================================
-       TP2 / TP3 OTOMATİK HESAP
-    ===================================================== */
-
-    const tpDistance =
-        Math.abs(
-            tp1 - entry
-        );
-
-
-    const tp2 =
-        tp2Input > 0
-            ? tp2Input
-            : (
-                side === 'LONG'
-                    ? entry + tpDistance * 2
-                    : entry - tpDistance * 2
-            );
-
-
-    const tp3 =
-        tp3Input > 0
-            ? tp3Input
-            : (
-                side === 'LONG'
-                    ? entry + tpDistance * 3
-                    : entry - tpDistance * 3
-            );
-
-
-    /* =====================================================
-       V10.4 POSITION
-    ===================================================== */
-
-    const position = {
-
-        id:
-            Date.now() +
-            '-' +
-            Math.random()
-                .toString(36)
-                .slice(2,8),
-
-
-        symbol,
-
-
-        side,
-
-
-        score:
-            signal
-                ? n(signal.score)
-                : null,
-
-
-        confirmation:
-            signal
-                ? signal.confirmation
-                : '',
-
-
-        quality:
-            signal
-                ? signal.quality
-                : '',
-
-
-        /* -------------------------------------------------
-           FİYATLAR
-        ------------------------------------------------- */
-
-        entry,
-
-        currentPrice,
-
-        sl,
-
-        tp1,
-
-        tp2,
-
-        tp3,
-
-
-        /* -------------------------------------------------
-           SERMAYE / NOTIONAL
-        ------------------------------------------------- */
-
-        capital,
-
-        lev,
-
-        notional,
-
-
-        /* -------------------------------------------------
-           MİKTAR
-        ------------------------------------------------- */
-
-        initialQuantity,
-
-        quantity,
-
-
-        /* -------------------------------------------------
-           TP DURUMLARI
-        ------------------------------------------------- */
-
-        tp1Hit:false,
-
-        tp2Hit:false,
-
-        tp3Hit:false,
-
-
-        /* -------------------------------------------------
-           RİSK YÖNETİMİ
-        ------------------------------------------------- */
-
-        breakEven:false,
-
-        trailingActive:false,
-
-
-        /* -------------------------------------------------
-           PNL
-        ------------------------------------------------- */
-
-        realizedPNL:0,
-
-        grossPNL:0,
-
-        commission:0,
-
-
-        /* -------------------------------------------------
-           OLAYLAR
-        ------------------------------------------------- */
-
-        events:[],
-
-
-        /* -------------------------------------------------
-           DURUM
-        ------------------------------------------------- */
-
-        openedAt:
-            new Date()
-                .toISOString(),
-
-
-        status:'Açık',
-
-
-        /* -------------------------------------------------
-           PNL TAKİBİ
-        ------------------------------------------------- */
-
-        maxPnl:0,
-
-        minPnl:0,
-
-        lastPnl:0,
-
-
-        updatedAt:
-            Date.now()
-
-    };
-
-
-    /* =====================================================
-       SON GÜVENLİK KONTROLÜ
-    ===================================================== */
-
-    if(
-        !Number.isFinite(position.capital) ||
-        position.capital <= 0
-    ){
-
-        alert(
-            'Pozisyon oluşturulamadı: '+
-            'sermaye değeri geçersiz.'
-        );
-
-        return;
-    }
-
-
-    if(
-        !Number.isFinite(position.notional) ||
-        position.notional <= 0
-    ){
-
-        alert(
-            'Pozisyon oluşturulamadı: '+
-            'notional değeri geçersiz.'
-        );
-
-        return;
-    }
-
-
-    if(
-        !Number.isFinite(position.quantity) ||
-        position.quantity <= 0
-    ){
-
-        alert(
-            'Pozisyon oluşturulamadı: '+
-            'pozisyon miktarı hesaplanamadı.'
-        );
-
-        return;
-    }
-
-
-    /* =====================================================
-       KAYDET
-    ===================================================== */
-
-    saveOpenPosition(
-        position
-    );
-
-
-    /* =====================================================
-       EKRAN
-    ===================================================== */
-
-    renderOpenPosition();
-
-    renderHistory();
-
-    renderTradeStats();
-
-
-    showView(
-        'trade'
-    );
-
-
-    /* =====================================================
-       KONSOL KONTROLÜ
-    ===================================================== */
-
-    console.log(
-        'V10.4 PAPER POSITION:',
-        {
-            symbol:
-                position.symbol,
-
-            side:
-                position.side,
-
-            capital:
-                position.capital,
-
-            leverage:
-                position.lev,
-
-            notional:
-                position.notional,
-
-            entry:
-                position.entry,
-
-            initialQuantity:
-                position.initialQuantity,
-
-            quantity:
-                position.quantity
-        }
-    );
-
-
-    alert(
-        'Paper pozisyon açıldı.\n\n' +
-
-        'Coin: ' +
-        position.symbol +
-        '\n' +
-
-        'Yön: ' +
-        position.side +
-        '\n' +
-
-        'Sermaye: ' +
-        position.capital.toFixed(2) +
-        ' USDT\n' +
-
-        'Notional: ' +
-        position.notional.toFixed(2) +
-        ' USDT\n' +
-
-        'Miktar: ' +
-        position.quantity.toFixed(6) +
-        '\n\n' +
-
-        'Gerçek emir gönderilmedi.'
-    );
-
 }
 
+    if($('tradeTP1'))
+        $('tradeTP1').value=p.tp1;
+
+    if($('tradeTP2'))
+        $('tradeTP2').value=p.tp2;
+
+    if($('tradeTP3'))
+        $('tradeTP3').value=p.tp3;
+
+    if($('tradeCapital'))
+        $('tradeCapital').value=
+            p.capital||100;
+
+    calcTrade();
+}
+
+
 /* =========================================================
-   V10.4 PNL HESAPLAMA
-   ---------------------------------------------------------
-   TP1 partial close sonrası kalan miktarı dikkate alır.
+   DETAY
    ========================================================= */
 
-function calculatePnl(position,currentPrice){
+function toggleDetail(symbol){
 
-    const entry =
-        n(position.entry);
+    const el=
+        $('d-'+symbol);
 
-    const price =
-        n(currentPrice);
+    if(!el)
+        return;
 
-    const capital =
-        n(position.capital);
+    const wasOpen=
+        el.classList.contains('open');
 
-    const lev =
-        n(position.lev) || 1;
+    document
+        .querySelectorAll('.detail')
+        .forEach(x=>
+            x.classList.remove('open')
+        );
 
+    if(wasOpen){
 
-    if(!entry || !price){
-
-        return{
-
-            pnl:0,
-
-            pnlPct:0,
-
-            leveragedPct:0,
-
-            move:0,
-
-            activeNotional:0,
-
-            quantity:0
-
-        };
-
-    }
-
-
-    /* -----------------------------------------------------
-       FİYAT HAREKETİ
-    ----------------------------------------------------- */
-
-    let move;
-
-
-    if(position.side==='LONG'){
-
-        move =
-            (price-entry) /
-            entry;
+        openDetailSymbol=
+            null;
 
     }else{
 
-        move =
-            (entry-price) /
-            entry;
+        el.classList.add('open');
+
+        openDetailSymbol=
+            symbol;
 
     }
+}
 
 
-    /* -----------------------------------------------------
-       BAŞLANGIÇ NOTIONAL
-    ----------------------------------------------------- */
+/* =========================================================
+   FİLTRE
+   ========================================================= */
 
-    const originalNotional =
-        capital * lev;
+function setFilter(v){
 
+    filter=v;
 
-    /* -----------------------------------------------------
-       V10.4 QUANTITY
-       TP1 sonrası quantity azalır.
-    ----------------------------------------------------- */
-
-    let quantity =
-        n(position.quantity);
+    document
+        .querySelectorAll('.tabs button')
+        .forEach(b=>
+            b.classList.remove('on')
+        );
 
 
-    /*
-     * Eski / quantity'siz pozisyonlarda
-     * geriye dönük uyumluluk.
-     */
-
-    if(quantity<=0){
-
-        const initialQuantity =
-            n(position.initialQuantity);
+    const id=
+        v==='all'
+            ?'all'
+            :v==='long'
+            ?'longTab'
+            :'shortTab';
 
 
-        if(initialQuantity>0){
+    $(id)?.classList.add('on');
 
-            quantity =
-                initialQuantity;
+    render();
+}
 
-        }else{
 
-            quantity =
-                entry>0
-                    ? originalNotional / entry
-                    : 0;
+/* =========================================================
+   ALT MENÜ
+   ========================================================= */
+
+function showView(v){
+
+    currentView=v;
+
+
+    [
+        'scan',
+        'markets',
+        'trade',
+        'history',
+        'performance',
+        'settings'
+    ].forEach(x=>{
+
+        const el=
+            $(x+'View');
+
+        if(el){
+
+            el.classList.toggle(
+                'hidden',
+                x!==v
+            );
 
         }
 
+    });
+
+
+    document
+        .querySelectorAll('.navbtn')
+        .forEach(b=>{
+
+            b.classList.toggle(
+                'active',
+                b.dataset.view===v
+            );
+
+        });
+
+
+    if(v==='markets')
+        renderMarkets();
+
+
+    if(v==='trade')
+        populateTrade();
+
+
+    if(v==='history')
+        renderHistory();
+
+
+    if(v==='performance')
+        renderPerformance();
+
+
+    if(v==='settings'){
+
+        if($('minScore'))
+            $('minScore').value=
+                localStorage.getItem(
+                    'minScore'
+                )||65;
+
+
+        if($('scanSeconds'))
+            $('scanSeconds').value=
+                localStorage.getItem(
+                    'scanSeconds'
+                )||90;
+
+    }
+
+}
+
+
+/* =========================================================
+   PİYASALAR
+   ========================================================= */
+
+function renderMarkets(){
+
+    const el=
+        $('marketList');
+
+    if(!el)
+        return;
+
+
+    const a=
+        [...tickers.values()]
+        .filter(
+            x=>
+                x.s?.endsWith('USDT')&&
+                n(x.q)>1000000
+        )
+        .sort(
+            (a,b)=>
+                n(b.q)-n(a.q)
+        )
+        .slice(0,30);
+
+
+    el.innerHTML=
+        a.length
+
+            ?a.map(x=>`
+
+<div class="marketrow">
+
+<b>
+${escapeHtml(x.s)}
+</b>
+
+<span>
+${fmt(x.c)}
+</span>
+
+<span class="${n(x.P)>=0?'green':'red'}">
+
+${n(x.P)>=0?'+':''}
+${n(x.P).toFixed(2)}%
+
+</span>
+
+</div>
+
+`).join('')
+
+            :'<div class="empty">'+
+             'Canlı piyasa verisi bekleniyor…'+
+             '</div>';
+
+}
+
+
+/* =========================================================
+   PAPER STORAGE
+   ========================================================= */
+
+function getOpenPosition(){
+
+    try{
+
+        const raw=
+            localStorage.getItem(
+                'openPaperPosition'
+            );
+
+
+        if(!raw)
+            return null;
+
+
+        const p=
+            JSON.parse(raw);
+
+
+        if(!p||!p.symbol)
+            return null;
+
+
+        return normalizePosition(p);
+
+    }catch(_){
+
+        return null;
+
+    }
+
+}
+
+
+/* =========================================================
+   V10.4 POSITION NORMALIZER
+   ---------------------------------------------------------
+   V9 + V10 + V10.4 alanlarını korur.
+   Pozisyon okunurken V10 alanlarının kaybolmasını engeller.
+   ========================================================= */
+
+function normalizePosition(p){
+
+    if(!p||!p.symbol)
+        return null;
+
+
+    const entry=
+        n(p.entry);
+
+
+    const lev=
+        n(p.lev)||1;
+
+
+    const capital=
+        n(p.capital);
+
+
+    const notional=
+        n(p.notional)||
+        (
+            capital>0
+                ?capital*lev
+                :0
+        );
+
+
+    let initialQuantity=
+        n(p.initialQuantity);
+
+
+    if(initialQuantity<=0){
+
+        initialQuantity=
+            entry>0&&
+            notional>0
+
+                ?notional/entry
+
+                :0;
+
     }
 
 
-    /* -----------------------------------------------------
-       AKTİF NOTIONAL
-    ----------------------------------------------------- */
-
-    const activeNotional =
-        quantity>0
-            ? entry * quantity
-            : 0;
+    let quantity=
+        n(p.quantity);
 
 
-    /* -----------------------------------------------------
-       BRÜT PNL
-    ----------------------------------------------------- */
-
-    const pnl =
-        activeNotional * move;
-
-
-    /* -----------------------------------------------------
-       FİYAT HAREKETİ %
-    ----------------------------------------------------- */
-
-    const pnlPct =
-        move * 100;
-
-
-    /* -----------------------------------------------------
-       SERMAYEYE GÖRE PNL %
-    ----------------------------------------------------- */
-
-    const leveragedPct =
-        pnl /
-        Math.max(
-            capital,
-            1e-12
-        ) *
-        100;
+    if(quantity<=0)
+        quantity=initialQuantity;
 
 
     return{
 
-        pnl,
+        id:
+            p.id||
+            Date.now(),
 
-        pnlPct,
 
-        leveragedPct,
+        symbol:
+            p.symbol,
 
-        move,
 
-        activeNotional,
+        side:
+            p.side==='SHORT'
+                ?'SHORT'
+                :'LONG',
 
-        quantity,
-
-        originalNotional
-
-    };
-
-}
-
-/* =========================================================
-   SL / TP
-   ========================================================= */
-
-function checkAutoClose(position,price){
-
-    if(!position)
-        return null;
-
-
-    const p=n(price);
-
-    if(!p)
-        return null;
-
-
-    if(position.side==='LONG'){
-
-        if(
-            n(position.sl)>0&&
-            p<=n(position.sl)
-        ){
-
-            return{
-                reason:'SL',
-                price:n(position.sl)
-            };
-        }
-
-
-        if(
-            n(position.tp1)>0&&
-            p>=n(position.tp1)
-        ){
-
-            return{
-                reason:'TP1',
-                price:n(position.tp1)
-            };
-        }
-
-
-        if(
-            n(position.tp2)>0&&
-            p>=n(position.tp2)
-        ){
-
-            return{
-                reason:'TP2',
-                price:n(position.tp2)
-            };
-        }
-
-
-        if(
-            n(position.tp3)>0&&
-            p>=n(position.tp3)
-        ){
-
-            return{
-                reason:'TP3',
-                price:n(position.tp3)
-            };
-        }
-    }
-
-
-    if(position.side==='SHORT'){
-
-        if(
-            n(position.sl)>0&&
-            p>=n(position.sl)
-        ){
-
-            return{
-                reason:'SL',
-                price:n(position.sl)
-            };
-        }
-
-
-        if(
-            n(position.tp1)>0&&
-            p<=n(position.tp1)
-        ){
-
-            return{
-                reason:'TP1',
-                price:n(position.tp1)
-            };
-        }
-
-
-        if(
-            n(position.tp2)>0&&
-            p<=n(position.tp2)
-        ){
-
-            return{
-                reason:'TP2',
-                price:n(position.tp2)
-            };
-        }
-
-
-        if(
-            n(position.tp3)>0&&
-            p<=n(position.tp3)
-        ){
-
-            return{
-                reason:'TP3',
-                price:n(position.tp3)
-            };
-        }
-    }
-
-
-    return null;
-}
-
-
-/* =========================================================
-   V10.4 OPEN POSITION RENDER
-   ---------------------------------------------------------
-   Position Manager bağlantısı
-   TP1 / TP2 / TP3
-   Break-Even
-   Trailing Stop
-   Net PNL
-========================================================= */
-
-function renderOpenPosition(){
-
-    ensureV9TradeUI();
-
-
-    const container=$('openPosition');
-
-    if(!container)
-        return;
-
-
-    let position=getOpenPosition();
-
-
-    /* =====================================================
-       AÇIK POZİSYON YOK
-    ===================================================== */
-
-    if(!position){
-
-        container.innerHTML=`
-
-<div class="panel">
-
-<h2>📭 Açık Pozisyon</h2>
-
-<div class="empty">
-Açık paper pozisyon bulunmuyor.
-</div>
-
-</div>
-
-`;
-
-        return;
-    }
-
-
-    /* =====================================================
-       GÜNCEL FİYAT
-    ===================================================== */
-
-    const ticker=
-        tickers.get(position.symbol);
-
-
-    const currentPrice=
-        n(ticker?.c)||
-        n(position.currentPrice)||
-        n(position.entry);
-
-
-    if(!currentPrice){
-
-        return;
-
-    }
-
-
- 
-
-
-    /* =====================================================
-       GÜNCEL FİYATI POZİSYONA YAZ
-    ===================================================== */
-
-    position.currentPrice=
-        currentPrice;
-
-
-    /* =====================================================
-       PNL
-    ===================================================== */
-
-    const result=
-        calculatePnl(
-            position,
-            currentPrice
-        );
-
-
-    position.lastPnl=
-        result.pnl;
-
-
-    position.maxPnl=
-        Math.max(
-            n(position.maxPnl),
-            result.pnl
-        );
-
-
-    position.minPnl=
-        Math.min(
-            n(position.minPnl),
-            result.pnl
-        );
-
-
-    position.updatedAt=
-        Date.now();
-
-
-    saveOpenPosition(
-        position
-    );
-
-
-    /* =====================================================
-       PNL RENK
-    ===================================================== */
-
-    const pnlClass=
-        result.pnl>=0
-            ? 'green'
-            : 'red';
-
-
-    /* =====================================================
-       POZİSYON DURUMU
-    ===================================================== */
-
-    let positionStatus=
-        'AÇIK';
-
-
-    if(position.tp3Hit){
-
-        positionStatus=
-            'TP3';
-
-    }else if(position.tp2Hit){
-
-        positionStatus=
-            'TP2';
-
-    }else if(position.tp1Hit){
-
-        if(position.trailingActive){
-
-            positionStatus=
-                'TP1 • TRAILING';
-
-        }else if(position.breakEven){
-
-            positionStatus=
-                'TP1 • BREAK-EVEN';
-
-        }else{
-
-            positionStatus=
-                'TP1';
-
-        }
-
-    }
-
-
-    /* =====================================================
-       SL DURUMU
-    ===================================================== */
-
-    let slLabel=
-        'STOP LOSS';
-
-
-    if(position.breakEven){
-
-        slLabel=
-            'BREAK-EVEN';
-
-    }else if(position.trailingActive){
-
-        slLabel=
-            'TRAILING STOP';
-
-    }
-
-
-    /* =====================================================
-       TP DURUMLARI
-    ===================================================== */
-
-    const tp1Status=
-        position.tp1Hit
-            ? '✓ GERÇEKLEŞTİ'
-            : 'BEKLİYOR';
-
-
-    const tp2Status=
-        position.tp2Hit
-            ? '✓ GERÇEKLEŞTİ'
-            : 'BEKLİYOR';
-
-
-    const tp3Status=
-        position.tp3Hit
-            ? '✓ GERÇEKLEŞTİ'
-            : 'BEKLİYOR';
-
-
-    /* =====================================================
-       V10.4 GERÇEKLEŞEN PNL
-    ===================================================== */
-
-    const realizedPNL=
-        n(position.realizedPNL);
-
-
-    const commission=
-        n(position.commission);
-
-
-    const remainingQuantity=
-        n(
-            position.quantity
-        );
-
-
-    /* =====================================================
-       EKRAN
-    ===================================================== */
-
-    container.innerHTML=`
-
-<div class="panel">
-
-<h2>📈 Açık Pozisyon</h2>
-
-<div class="muted">
-Paper Trading • Gerçek emir gönderilmedi
-</div>
-
-
-<!-- =====================================================
-     DURUM
-===================================================== -->
-
-<div class="box"
-style="margin-top:10px">
-
-<span>DURUM</span>
-
-<b class="${
-    position.side==='LONG'
-        ? 'green'
-        : 'red'
-}">
-${positionStatus}
-</b>
-
-</div>
-
-
-<!-- =====================================================
-     ANA BİLGİLER
-===================================================== -->
-
-<div class="grid">
-
-<div class="box">
-
-<span>COIN</span>
-
-<b>
-${escapeHtml(position.symbol)}
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>YÖN</span>
-
-<b class="${
-    position.side==='LONG'
-        ? 'green'
-        : 'red'
-}">
-${position.side}
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>GİRİŞ</span>
-
-<b>
-${fmt(position.entry)}
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>ANLIK FİYAT</span>
-
-<b>
-${fmt(currentPrice)}
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>SERMAYE</span>
-
-<b>
-${fmt(position.capital)} USDT
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>NOTIONAL</span>
-
-<b>
-${fmt(position.notional)} USDT
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>KALDIRAÇ</span>
-
-<b>
-${position.lev}x
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>AKTİF MİKTAR</span>
-
-<b>
-${
-    Number(
-        position.quantity ??
-        position.initialQuantity ??
-        0
-    ) > 0
-        ? Number(
-            position.quantity ??
-            position.initialQuantity
-        ).toFixed(6)
-        : '—'
-}
-</b>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     PNL
-===================================================== -->
-
-<div class="grid">
-
-<div class="box">
-
-<span>ANLIK PNL</span>
-
-<b class="${pnlClass}">
-
-${result.pnl>=0?'+':''}
-${fmtPnl(result.pnl)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>FİYAT DEĞİŞİMİ</span>
-
-<b class="${pnlClass}">
-
-${result.pnlPct>=0?'+':''}
-${result.pnlPct.toFixed(2)}%
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>KALDIRAÇLI PNL</span>
-
-<b class="${pnlClass}">
-
-${result.leveragedPct>=0?'+':''}
-${result.leveragedPct.toFixed(2)}%
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>GERÇEKLEŞEN PNL</span>
-
-<b class="${
-    realizedPNL>=0
-        ? 'green'
-        : 'red'
-}">
-
-${realizedPNL>=0?'+':''}
-${fmtPnl(realizedPNL)}
-USDT
-
-</b>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     KOMİSYON
-===================================================== -->
-
-<div class="grid">
-
-<div class="box">
-
-<span>KOMİSYON</span>
-
-<b>
-${fmtPnl(commission)}
-USDT
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>EN İYİ PNL</span>
-
-<b class="green">
-
-+${fmtPnl(position.maxPnl)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>EN KÖTÜ PNL</span>
-
-<b class="red">
-
-${fmtPnl(position.minPnl)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>AKTİF MİKTAR</span>
-
-<b>
-${remainingQuantity
-    ? remainingQuantity.toFixed(6)
-    : '0'}
-</b>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     SL / TP
-===================================================== -->
-
-<div class="grid">
-
-<div class="box">
-
-<span>${slLabel}</span>
-
-<b class="${
-    position.breakEven ||
-    position.trailingActive
-        ? 'yellow'
-        : 'red'
-}">
-
-${fmt(position.sl)}
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>TP1</span>
-
-<b class="${
-    position.tp1Hit
-        ? 'green'
-        : ''
-}">
-
-${fmt(position.tp1)}
-
-<br>
-
-<small>
-${tp1Status}
-</small>
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>TP2</span>
-
-<b class="${
-    position.tp2Hit
-        ? 'green'
-        : ''
-}">
-
-${fmt(position.tp2)}
-
-<br>
-
-<small>
-${tp2Status}
-</small>
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>TP3</span>
-
-<b class="${
-    position.tp3Hit
-        ? 'green'
-        : ''
-}">
-
-${fmt(position.tp3)}
-
-<br>
-
-<small>
-${tp3Status}
-</small>
-
-</b>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     TP1 BİLGİ
-===================================================== -->
-
-${
-    position.tp1Hit
-        ? `
-
-<div class="box"
-style="margin-top:9px">
-
-<span>TP1 SONRASI</span>
-
-<b class="green">
-
-%30 kısmi kâr alındı
-
-</b>
-
-<div class="muted"
-style="margin-top:4px">
-
-${
-    position.breakEven
-        ? 'SL giriş fiyatına taşındı.'
-        : 'Break-even bekleniyor.'
-}
-
-</div>
-
-</div>
-
-`
-        : ''
-}
-
-
-<!-- =====================================================
-     TRAILING
-===================================================== -->
-
-${
-    position.trailingActive
-        ? `
-
-<div class="box"
-style="margin-top:9px">
-
-<span>TRAILING STOP</span>
-
-<b class="yellow">
-
-AKTİF
-
-</b>
-
-<div class="muted"
-style="margin-top:4px">
-
-SL fiyat hareketini takip ediyor.
-
-</div>
-
-</div>
-
-`
-        : ''
-}
-
-
-<!-- =====================================================
-     SİNYAL
-===================================================== -->
-
-<div class="grid">
-
-<div class="box">
-
-<span>SİNYAL SKORU</span>
-
-<b>
-
-${
-    position.score!==null
-        ? position.score+'/100'
-        : '—'
-}
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>TEYİT</span>
-
-<b>
-
-${escapeHtml(
-    position.confirmation||'—'
-)}
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>KALİTE</span>
-
-<b>
-
-${escapeHtml(
-    position.quality||'—'
-)}
-
-</b>
-
-</div>
-
-
-<div class="box">
-
-<span>KALDIRAÇ</span>
-
-<b>
-
-${position.lev}x
-
-</b>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     ZAMAN
-===================================================== -->
-
-<div class="meta">
-
-<span>
-
-Açılış:
-${new Date(
-    position.openedAt
-).toLocaleString('tr-TR')}
-
-</span>
-
-
-<span>
-
-ID:
-${escapeHtml(position.id)}
-
-</span>
-
-</div>
-
-
-<!-- =====================================================
-     KAPAT
-===================================================== -->
-
-<button
-class="secondary"
-onclick="closePaperPosition()">
-
-Pozisyonu Kapat
-
-</button>
-
-
-</div>
-
-`;
-
-}
-
-/* =========================================================
-   POZİSYON KAPAT
-   ========================================================= */
-
-function closePaperPosition(
-    reason='MANUEL',
-    forcedPrice=null,
-    automatic=false
-){
-
-    const position=getOpenPosition();
-
-
-    if(!position){
-
-        if(!automatic)
-            alert('Açık pozisyon bulunmuyor.');
-
-        return;
-    }
-
-
-    const ticker=
-        tickers.get(position.symbol);
-
-
-    const exitPrice=
-        n(forcedPrice)||
-        n(ticker?.c)||
-        n(position.currentPrice)||
-        position.entry;
-
-
-    const result=
-        calculatePnl(
-            position,
-            exitPrice
-        );
-
-
-    const record={
-
-        id:position.id,
-
-        symbol:position.symbol,
-
-        side:position.side,
 
         score:
             Number.isFinite(
-                Number(position.score)
+                Number(p.score)
             )
-                ?n(position.score)
+                ?n(p.score)
                 :null,
 
+
         confirmation:
-            position.confirmation||'',
+            p.confirmation||'',
+
 
         quality:
-            position.quality||'',
+            p.quality||'',
 
-        entry:position.entry,
 
-        exit:exitPrice,
+        entry,
 
-        sl:position.sl,
 
-        tp1:position.tp1,
+        currentPrice:
+            n(p.currentPrice)||
+            entry,
 
-        tp2:position.tp2,
 
-        tp3:position.tp3,
+        initialSl:
+            n(p.initialSl)||
+            n(p.sl),
 
-        lev:position.lev,
 
-        capital:position.capital,
+        sl:
+            n(p.sl),
 
-        notional:position.notional,
 
-        pnl:result.pnl,
+        tp1:
+            n(p.tp1),
 
-        pnlPct:result.pnlPct,
 
-        leveragedPct:result.leveragedPct,
+        tp2:
+            n(p.tp2),
 
-        maxPnl:n(position.maxPnl),
 
-        minPnl:n(position.minPnl),
+        tp3:
+            n(p.tp3),
 
-        openedAt:position.openedAt,
 
-        closedAt:new Date().toISOString(),
+        capital,
 
-        status:'Kapalı',
 
-        closeReason:reason
+        lev,
+
+
+        notional,
+
+
+        initialQuantity,
+
+
+        quantity,
+
+
+        tp1Hit:
+            p.tp1Hit===true,
+
+
+        tp2Hit:
+            p.tp2Hit===true,
+
+
+        tp3Hit:
+            p.tp3Hit===true,
+
+
+        tp1At:
+            p.tp1At||null,
+
+
+        tp2At:
+            p.tp2At||null,
+
+
+        tp3At:
+            p.tp3At||null,
+
+
+        tp1Price:
+            n(p.tp1Price),
+
+
+        tp2Price:
+            n(p.tp2Price),
+
+
+        tp3Price:
+            n(p.tp3Price),
+
+
+        breakEven:
+            p.breakEven===true||
+            p.breakEvenActive===true,
+
+
+        breakEvenActive:
+            p.breakEvenActive===true||
+            p.breakEven===true,
+
+
+        breakEvenPrice:
+            n(p.breakEvenPrice)||
+            entry,
+
+
+        trailingActive:
+            p.trailingActive===true,
+
+
+        trailingStop:
+            n(p.trailingStop),
+
+
+        trailingR:
+            n(p.trailingR),
+
+
+        realizedPNL:
+            n(
+                p.realizedPNL??
+                p.realizedNetPnl
+            ),
+
+
+        grossPNL:
+            n(
+                p.grossPNL??
+                p.realizedGrossPnl
+            ),
+
+
+        commission:
+            n(
+                p.commission??
+                p.realizedFees
+            ),
+
+
+        realizedGrossPnl:
+            n(
+                p.realizedGrossPnl??
+                p.grossPNL
+            ),
+
+
+        realizedFees:
+            n(
+                p.realizedFees??
+                p.commission
+            ),
+
+
+        realizedNetPnl:
+            n(
+                p.realizedNetPnl??
+                p.realizedPNL
+            ),
+
+
+        initialRiskDistance:
+            n(p.initialRiskDistance),
+
+
+        initialRiskPct:
+            n(p.initialRiskPct),
+
+
+        accountRiskPct:
+            n(p.accountRiskPct),
+
+
+        riskAmount:
+            n(p.riskAmount),
+
+
+        maxRiskPct:
+            n(p.maxRiskPct),
+
+
+        maxRiskWarning:
+            p.maxRiskWarning===true,
+
+
+        remainingQtyPct:
+            p.remainingQtyPct!==undefined
+                ?n(p.remainingQtyPct)
+                :1,
+
+
+        tp1QtyPct:
+            n(p.tp1QtyPct),
+
+
+        tp2QtyPct:
+            n(p.tp2QtyPct),
+
+
+        tp3QtyPct:
+            n(p.tp3QtyPct),
+
+
+        legs:
+            p.legs||{},
+
+
+        events:
+            Array.isArray(p.events)
+                ?p.events
+                :[],
+
+
+        openedAt:
+            p.openedAt||
+            new Date().toISOString(),
+
+
+        status:
+            p.status||
+            'Açık',
+
+
+        closed:
+            p.closed===true,
+
+
+        closedAt:
+            p.closedAt||null,
+
+
+        closeReason:
+            p.closeReason||'',
+
+
+        closePrice:
+            n(p.closePrice),
+
+
+        maxPnl:
+            n(p.maxPnl),
+
+
+        minPnl:
+            n(p.minPnl),
+
+
+        lastPnl:
+            n(p.lastPnl),
+
+
+        updatedAt:
+            p.updatedAt||
+            Date.now()
+
     };
 
+}
 
-    const history=getHistory();
 
-    history.unshift(record);
+function saveOpenPosition(p){
 
-    saveHistory(history);
+    localStorage.setItem(
+        'openPaperPosition',
+        JSON.stringify(p)
+    );
+
+}
+
+
+function clearOpenPosition(){
+
+    localStorage.removeItem(
+        'openPaperPosition'
+    );
+
+}
+
+
+function getHistory(){
+
+    try{
+
+        const h=
+            JSON.parse(
+                localStorage.getItem(
+                    'paperHistory'
+                )||'[]'
+            );
+
+
+        return Array.isArray(h)
+            ?h
+            :[];
+
+    }catch(_){
+
+        return[];
+
+    }
+
+}
+
+
+function saveHistory(history){
+
+    localStorage.setItem(
+        'paperHistory',
+        JSON.stringify(
+            history.slice(0,500)
+        )
+    );
+
+}
+
+/* =========================================================
+   TRADE EKRANI
+   ========================================================= */
+
+function populateTrade(){
+
+    const select=
+        $('tradeCoin');
+
+    if(!select)
+        return;
+
+
+    const current=
+        select.value;
+
+
+    const list=
+        signals
+        .filter(x=>x.side!=='NÖTR');
+
+
+    select.innerHTML=
+        '<option value="">Coin seç</option>'+
+        list.map(x=>
+            `<option value="${escapeHtml(x.symbol)}">
+                ${escapeHtml(x.symbol)}
+            </option>`
+        ).join('');
+
+
+    if(current)
+        select.value=current;
+
+
+    applyTradeFromSelection();
+
+}
+
+
+/* =========================================================
+   TRADE SEÇİMİ
+   ========================================================= */
+
+function applyTradeFromSelection(){
+
+    const symbol=
+        $('tradeCoin')?.value;
+
+
+    if(!symbol)
+        return;
+
+
+    const signal=
+        signals.find(
+            x=>x.symbol===symbol
+        );
+
+
+    if(!signal)
+        return;
+
+
+    const side=
+        $('tradeSide');
+
+
+    const entry=
+        $('tradeEntry');
+
+    const sl=
+        $('tradeSL');
+
+    const tp1=
+        $('tradeTP1');
+
+    const tp2=
+        $('tradeTP2');
+
+    const tp3=
+        $('tradeTP3');
+
+    const lev=
+        $('tradeLev');
+
+
+    if(side)
+        side.value=
+            signal.side;
+
+
+    if(entry)
+        entry.value=
+            signal.entry;
+
+
+    if(sl)
+        sl.value=
+            signal.sl;
+
+
+    if(tp1)
+        tp1.value=
+            signal.tp1;
+
+
+    if(tp2)
+        tp2.value=
+            signal.tp2;
+
+
+    if(tp3)
+        tp3.value=
+            signal.tp3;
+
+
+    if(lev)
+        lev.value=
+            signal.lev;
+
+
+    if($('tradeCapital')&&
+       !$('tradeCapital').value){
+
+        $('tradeCapital').value=
+            100;
+
+    }
+
+
+    calcTrade();
+
+}
+
+
+/* =========================================================
+   AÇIK POZİSYON EKRANI
+   ========================================================= */
+
+function renderOpenPosition(){
+
+    const el=
+        $('openPosition');
+
+    if(!el)
+        return;
+
+
+    const p=
+        getOpenPosition();
+
+
+    if(!p){
+
+        el.innerHTML=
+            '<div class="empty">'+
+            'Açık PAPER pozisyon yok.'+
+            '</div>';
+
+        return;
+
+    }
+
+
+    const price=
+        n(
+            tickers
+            .get(p.symbol)
+            ?.c
+        )||
+        p.currentPrice||
+        p.entry;
+
+
+    const pnl=
+        calculatePnl(
+            p,
+            price
+        );
+
+
+    p.currentPrice=
+        price;
+
+
+    p.lastPnl=
+        pnl;
+
+
+    saveOpenPosition(p);
+
+
+    const cls=
+        p.side==='LONG'
+            ?'long'
+            :'short';
+
+
+    el.innerHTML=`
+
+<div class="position-card ${cls}">
+
+    <div class="position-head">
+
+        <div>
+
+            <b>
+                ${escapeHtml(p.symbol)}
+            </b>
+
+            <span class="badge">
+                ${escapeHtml(p.side)}
+            </span>
+
+        </div>
+
+        <div class="position-status">
+            ${escapeHtml(p.status)}
+        </div>
+
+    </div>
+
+
+    <div class="position-grid">
+
+        <div>
+            <small>Giriş</small>
+            <strong>
+                ${fmt(p.entry)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>Anlık</small>
+            <strong>
+                ${fmt(price)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>Miktar</small>
+            <strong>
+                ${fmt(p.quantity)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>Notional</small>
+            <strong>
+                ${fmt(p.notional)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>SL</small>
+            <strong>
+                ${fmt(p.sl)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>TP1</small>
+            <strong>
+                ${fmt(p.tp1)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>TP2</small>
+            <strong>
+                ${fmt(p.tp2)}
+            </strong>
+        </div>
+
+
+        <div>
+            <small>TP3</small>
+            <strong>
+                ${fmt(p.tp3)}
+            </strong>
+        </div>
+
+    </div>
+
+
+    <div class="pnl">
+
+        <span>
+            Anlık PNL
+        </span>
+
+        <strong class="${pnl>=0?'green':'red'}">
+            ${pnl>=0?'+':''}${pnl.toFixed(2)} USDT
+        </strong>
+
+    </div>
+
+
+    <div class="position-actions">
+
+        <button
+            onclick="closePaperPosition('MANUAL')"
+        >
+            İşlemi Kapat
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+
+}
+
+
+/* =========================================================
+   PNL
+   ========================================================= */
+
+function calculatePnl(
+    position,
+    currentPrice
+){
+
+    if(
+        !position||
+        !position.entry||
+        !position.quantity
+    )
+        return 0;
+
+
+    const diff=
+        position.side==='LONG'
+
+            ?currentPrice-position.entry
+
+            :position.entry-currentPrice;
+
+
+    const pnl=
+        diff*
+        position.quantity;
+
+
+    return Number.isFinite(pnl)
+        ?pnl
+        :0;
+
+}
+
+
+/* =========================================================
+   MANUEL POZİSYON KAPAT
+   ========================================================= */
+
+function closePaperPosition(
+    reason='MANUAL'
+){
+
+    const p=
+        getOpenPosition();
+
+
+    if(!p)
+        return;
+
+
+    const price=
+        n(
+            tickers
+            .get(p.symbol)
+            ?.c
+        )||
+        p.currentPrice||
+        p.entry;
+
+
+    const pnl=
+        calculatePnl(
+            p,
+            price
+        );
+
+
+    p.currentPrice=
+        price;
+
+
+    p.closePrice=
+        price;
+
+
+    p.realizedPNL=
+        n(p.realizedPNL)+pnl;
+
+
+    p.realizedNetPnl=
+        p.realizedPNL;
+
+
+    p.status=
+        'Kapalı';
+
+
+    p.closed=
+        true;
+
+
+    p.closedAt=
+        new Date().toISOString();
+
+
+    p.closeReason=
+        reason;
+
+
+    p.quantity=
+        0;
+
+
+    saveHistory([
+        p,
+        ...getHistory()
+    ]);
+
 
     clearOpenPosition();
 
 
     renderOpenPosition();
+
     renderHistory();
+
     renderTradeStats();
-    renderHistoryStats();
-    renderPerformance();
 
 
-    if(automatic){
+    alert(
+        'Paper pozisyon kapatıldı.\n\n'+
+        'Coin: '+p.symbol+'\n'+
+        'PNL: '+pnl.toFixed(2)+' USDT'
+    );
 
-        setTimeout(()=>{
-
-            alert(
-                'Paper pozisyon otomatik kapatıldı.\n\n'+
-                'Sebep: '+reason+'\n'+
-                'Çıkış: '+fmt(exitPrice)+'\n'+
-                'PNL: '+
-                (result.pnl>=0?'+':'')+
-                fmtPnl(result.pnl)+
-                ' USDT'
-            );
-
-        },50);
-
-    }else{
-
-        alert(
-            'Paper pozisyon kapatıldı.\n\n'+
-            'Sebep: '+reason+'\n'+
-            'PNL: '+
-            (result.pnl>=0?'+':'')+
-            fmtPnl(result.pnl)+
-            ' USDT'
-        );
-    }
 }
 
 
 /* =========================================================
-   İSTATİSTİK
+   HISTORY
    ========================================================= */
 
-function getStats(){
+function renderHistory(){
 
-    const history=getHistory();
+    const el=
+        $('historyList');
 
-
-    const total=history.length;
-
-    const wins=
-        history.filter(
-            x=>n(x.pnl)>0
-        ).length;
-
-    const losses=
-        history.filter(
-            x=>n(x.pnl)<0
-        ).length;
-
-    const breakeven=
-        history.filter(
-            x=>n(x.pnl)===0
-        ).length;
+    if(!el)
+        return;
 
 
-    const totalPnl=
-        history.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
+    const history=
+        getHistory();
 
 
-    const winRate=
-        total
-            ?wins/total*100
-            :0;
+    if(!history.length){
+
+        el.innerHTML=
+            '<div class="empty">'+
+            'Henüz kapanmış PAPER işlem yok.'+
+            '</div>';
+
+        return;
+
+    }
 
 
-    const best=
-        history.length
-            ?Math.max(
-                ...history.map(
-                    x=>n(x.pnl)
-                )
-            )
-            :0;
+    el.innerHTML=
+        history
+        .slice(0,100)
+        .map(p=>{
+
+            const pnl=
+                n(
+                    p.realizedNetPnl??
+                    p.realizedPNL
+                );
 
 
-    const worst=
-        history.length
-            ?Math.min(
-                ...history.map(
-                    x=>n(x.pnl)
-                )
-            )
-            :0;
+            return`
+
+<div class="history-row">
+
+    <div>
+
+        <b>
+            ${escapeHtml(p.symbol)}
+        </b>
+
+        <span>
+            ${escapeHtml(p.side)}
+        </span>
+
+    </div>
 
 
-    return{
+    <div>
 
-        total,
-        wins,
-        losses,
-        breakeven,
-        totalPnl,
-        winRate,
-        best,
-        worst
-    };
+        ${fmt(p.entry)}
+        →
+        ${fmt(p.closePrice)}
+
+    </div>
+
+
+    <strong
+        class="${pnl>=0?'green':'red'}"
+    >
+
+        ${pnl>=0?'+':''}
+        ${pnl.toFixed(2)}
+        USDT
+
+    </strong>
+
+</div>
+
+`;
+
+        })
+        .join('');
+
 }
 
 
@@ -4686,6065 +2669,33 @@ function getStats(){
 
 function renderTradeStats(){
 
-    ensureV9TradeUI();
-
-
-    const el=$('tradeStats');
-
-    if(!el)
-        return;
-
-
-    const s=getStats();
-
-
-    const cls=
-        s.totalPnl>=0
-            ?'green'
-            :'red';
-
-
-    el.innerHTML=`
-
-<div class="panel">
-
-<h2>📊 Paper İstatistikleri</h2>
-
-<div class="grid">
-
-<div class="box">
-<span>TOPLAM İŞLEM</span>
-<b>${s.total}</b>
-</div>
-
-<div class="box">
-<span>KAZANAN</span>
-<b class="green">${s.wins}</b>
-</div>
-
-<div class="box">
-<span>KAYBEDEN</span>
-<b class="red">${s.losses}</b>
-</div>
-
-<div class="box">
-<span>WIN RATE</span>
-<b>${s.winRate.toFixed(1)}%</b>
-</div>
-
-<div class="box">
-<span>TOPLAM PNL</span>
-<b class="${cls}">
-${s.totalPnl>=0?'+':''}${fmtPnl(s.totalPnl)} USDT
-</b>
-</div>
-
-<div class="box">
-<span>EN İYİ</span>
-<b class="green">
-+${fmtPnl(s.best)} USDT
-</b>
-</div>
-
-<div class="box">
-<span>EN KÖTÜ</span>
-<b class="red">
-${fmtPnl(s.worst)} USDT
-</b>
-</div>
-
-<div class="box">
-<span>BAŞABAŞ</span>
-<b>${s.breakeven}</b>
-</div>
-
-</div>
-
-</div>
-
-`;
-}
-
-
-/* =========================================================
-   GEÇMİŞ
-   ========================================================= */
-
-function renderHistory(){
-
-    ensureV9HistoryUI();
-
-
-    const el=$('historyList');
-
-    if(!el)
-        return;
-
-
-    const history=getHistory();
-
-    const open=getOpenPosition();
-
-
-    let html='';
-
-
-    if(open){
-
-        const ticker=
-            tickers.get(open.symbol);
-
-        const price=
-            n(ticker?.c)||
-            n(open.currentPrice)||
-            open.entry;
-
-        const result=
-            calculatePnl(
-                open,
-                price
-            );
-
-
-        html+=`
-
-<div class="history">
-
-<b class="yellow">
-
-🟡 ${escapeHtml(open.symbol)}
-${open.side}
-• AÇIK
-
-</b>
-
-<div class="muted">
-
-Giriş ${fmt(open.entry)}
-•
-Anlık ${fmt(price)}
-•
-${open.lev}x
-
-</div>
-
-<div class="${
-    result.pnl>=0
-        ?'green'
-        :'red'
-}">
-
-PNL:
-
-${result.pnl>=0?'+':''}
-${fmtPnl(result.pnl)}
-USDT
-
-</div>
-
-</div>
-
-`;
-    }
-
-
-    if(history.length){
-
-        html+=
-            history.map(x=>{
-
-                const cls=
-                    n(x.pnl)>=0
-                        ?'green'
-                        :'red';
-
-
-                const reason=
-                    x.closeReason||
-                    'MANUEL';
-
-
-                return`
-
-<div class="history">
-
-<b class="${cls}">
-
-${escapeHtml(x.symbol)}
-${x.side}
-• KAPALI
-
-</b>
-
-
-<div class="muted">
-
-Çıkış:
-${escapeHtml(reason)}
-
-•
-${x.lev}x
-
-•
-Skor:
-${x.score!==null&&x.score!==undefined
-    ?n(x.score)+'/100'
-    :'—'}
-
-</div>
-
-
-<div class="muted">
-
-Giriş:
-${fmt(x.entry)}
-
-•
-
-Çıkış:
-${fmt(x.exit)}
-
-</div>
-
-
-<div class="${cls}">
-
-PNL:
-
-${x.pnl>=0?'+':''}
-${fmtPnl(x.pnl)}
-USDT
-
-•
-
-${n(x.leveragedPct)>=0?'+':''}
-${n(x.leveragedPct).toFixed(2)}%
-
-</div>
-
-
-<div class="muted">
-
-${new Date(x.openedAt)
-    .toLocaleString('tr-TR')}
-
-→
-
-${new Date(x.closedAt)
-    .toLocaleString('tr-TR')}
-
-</div>
-
-
-<div class="muted">
-
-ID:
-${escapeHtml(x.id)}
-
-</div>
-
-</div>
-
-`;
-
-            }).join('');
-    }
-
-
-    el.innerHTML=
-        html||
-        '<div class="empty">'+
-        'Henüz paper işlem yok.'+
-        '</div>';
-
-
-    renderHistoryStats();
-}
-
-
-function renderHistoryStats(){
-
-    ensureV9HistoryUI();
-
-
-    const el=$('historyStats');
-
-    if(!el)
-        return;
-
-
-    const s=getStats();
-
-
-    const cls=
-        s.totalPnl>=0
-            ?'green'
-            :'red';
-
-
-    el.innerHTML=`
-
-<div class="grid">
-
-<div class="box">
-<span>İŞLEM</span>
-<b>${s.total}</b>
-</div>
-
-<div class="box">
-<span>WIN RATE</span>
-<b>${s.winRate.toFixed(1)}%</b>
-</div>
-
-<div class="box">
-<span>KAZANAN</span>
-<b class="green">${s.wins}</b>
-</div>
-
-<div class="box">
-<span>KAYBEDEN</span>
-<b class="red">${s.losses}</b>
-</div>
-
-<div class="box">
-<span>TOPLAM PNL</span>
-<b class="${cls}">
-${s.totalPnl>=0?'+':''}
-${fmtPnl(s.totalPnl)} USDT
-</b>
-</div>
-
-<div class="box">
-<span>EN İYİ</span>
-<b class="green">
-+${fmtPnl(s.best)}
-</b>
-</div>
-
-</div>
-
-`;
-}
-
-
-/* =========================================================
-   V9 PERFORMANS MOTORU
-   ========================================================= */
-
-function renderPerformance(){
-
-    const el=$('performanceContent');
-
-    if(!el)
-        return;
-
-
-    const history=getHistory();
+    const history=
+        getHistory();
 
 
     const closed=
-        history.filter(
-            x=>
-                x&&
-                (
-                    x.status==='Kapalı'||
-                    x.status==='Closed'
-                )
-        );
-
-
-    if(!closed.length){
-
-        el.innerHTML=`
-
-<div class="performance-empty">
-
-📊 Henüz tamamlanmış paper işlem yok.
-
-<br><br>
-
-İlk paper işlemini kapattığında
-istatistikler burada görünecek.
-
-<br><br>
-
-Performans yalnızca kapanmış paper işlemlerinden hesaplanır.
-Açık pozisyonlar hesaba dahil edilmez.
-
-</div>
-
-`;
-
-        return;
-    }
-
-
-    const total=closed.length;
-
-
-    const wins=
-        closed.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const losses=
-        closed.filter(
-            x=>n(x.pnl)<0
-        );
-
-
-    const breakeven=
-        closed.filter(
-            x=>n(x.pnl)===0
-        );
-
-
-    const totalPnl=
-        closed.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
-
-
-    const winRate=
-        wins.length/
-        total*100;
-
-
-    const avgPnl=
-        totalPnl/
-        total;
-
-
-    const grossProfit=
-        wins.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
-
-
-    const grossLoss=
-        losses.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
-
-
-    const profitFactor=
-        grossLoss<0
-            ?grossProfit/
-                Math.abs(grossLoss)
-            :grossProfit>0
-                ?Infinity
-                :0;
-
-
-    const best=
-        [...closed].sort(
-            (a,b)=>
-                n(b.pnl)-
-                n(a.pnl)
-        )[0];
-
-
-    const worst=
-        [...closed].sort(
-            (a,b)=>
-                n(a.pnl)-
-                n(b.pnl)
-        )[0];
-
-
-    /* =====================================================
-       LONG
-       ===================================================== */
-
-    const longs=
-        closed.filter(
-            x=>x.side==='LONG'
-        );
-
-
-    const longWins=
-        longs.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const longPnl=
-        longs.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
-
-
-    const longRate=
-        longs.length
-            ?longWins.length/
-                longs.length*100
-            :0;
-
-
-    /* =====================================================
-       SHORT
-       ===================================================== */
-
-    const shorts=
-        closed.filter(
-            x=>x.side==='SHORT'
-        );
-
-
-    const shortWins=
-        shorts.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const shortPnl=
-        shorts.reduce(
-            (sum,x)=>sum+n(x.pnl),
-            0
-        );
-
-
-    const shortRate=
-        shorts.length
-            ?shortWins.length/
-                shorts.length*100
-            :0;
-
-
-    /* =====================================================
-       SKOR ANALİZİ
-       ===================================================== */
-
-    const scored=
-        closed.filter(
-            x=>
-                Number.isFinite(
-                    Number(x.score)
-                )
-        );
-
-
-    const avgScore=
-        scored.length
-            ?scored.reduce(
-                (sum,x)=>
-                    sum+n(x.score),
-                0
-            )/
-            scored.length
-            :0;
-
-
-    const score65=
-        scored.filter(
-            x=>n(x.score)>=65
-        );
-
-
-    const score70=
-        scored.filter(
-            x=>n(x.score)>=70
-        );
-
-
-    const score75=
-        scored.filter(
-            x=>n(x.score)>=75
-        );
-
-
-    const score80=
-        scored.filter(
-            x=>n(x.score)>=80
-        );
-
-
-    const score65Wins=
-        score65.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const score70Wins=
-        score70.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const score75Wins=
-        score75.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const score80Wins=
-        score80.filter(
-            x=>n(x.pnl)>0
-        );
-
-
-    const rate65=
-        score65.length
-            ?score65Wins.length/
-                score65.length*100
-            :0;
-
-
-    const rate70=
-        score70.length
-            ?score70Wins.length/
-                score70.length*100
-            :0;
-
-
-    const rate75=
-        score75.length
-            ?score75Wins.length/
-                score75.length*100
-            :0;
-
-
-    const rate80=
-        score80.length
-            ?score80Wins.length/
-                score80.length*100
-            :0;
-
-
-    /* =====================================================
-       DRAWDOWN
-       ===================================================== */
-
-    let cumulative=0;
-
-    let peak=0;
-
-    let maxDrawdown=0;
-
-
-    closed
-        .slice()
-        .reverse()
-        .forEach(x=>{
-
-            cumulative+=n(x.pnl);
-
-            peak=
-                Math.max(
-                    peak,
-                    cumulative
-                );
-
-            const dd=
-                peak-cumulative;
-
-            maxDrawdown=
-                Math.max(
-                    maxDrawdown,
-                    dd
-                );
-        });
-
-
-    /* =====================================================
-       R/R
-       ===================================================== */
-
-    const rrValues=
-        closed
-            .map(x=>{
-
-                const risk=
-                    Math.abs(
-                        n(x.entry)-
-                        n(x.sl)
-                    );
-
-                if(!risk)
-                    return 0;
-
-                return Math.abs(
-                    n(x.tp1)-
-                    n(x.entry)
-                )/risk;
-            })
-            .filter(x=>x>0);
-
-
-    const avgRR=
-        rrValues.length
-            ?rrValues.reduce(
-                (a,b)=>a+b,
-                0
-            )/
-            rrValues.length
-            :0;
-
-
-    /* =====================================================
-       KAPANIŞ NEDENLERİ
-       ===================================================== */
-
-    const reasons={};
-
-
-    closed.forEach(x=>{
-
-        const reason=
-            x.closeReason||
-            'MANUEL';
-
-        reasons[reason]=
-            (reasons[reason]||0)+1;
-    });
-
-
-    /* =====================================================
-       ORTALAMA KAZANÇ / KAYIP
-       ===================================================== */
-
-    const avgWin=
-        wins.length
-            ?grossProfit/
-                wins.length
-            :0;
-
-
-    const avgLoss=
-        losses.length
-            ?grossLoss/
-                losses.length
-            :0;
-
-
-    /* =====================================================
-       EQUITY
-       ===================================================== */
-
-    let running=0;
-
-    const equityData=
-        closed
-            .slice()
-            .reverse()
-            .map(x=>{
-
-                running+=n(x.pnl);
-
-                return{
-                    pnl:running
-                };
-            });
-
-
-    const equityMin=
-        equityData.length
-            ?Math.min(
-                ...equityData.map(
-                    x=>x.pnl
-                )
-            )
-            :0;
-
-
-    const equityMax=
-        equityData.length
-            ?Math.max(
-                ...equityData.map(
-                    x=>x.pnl
-                )
-            )
-            :0;
-
-
-    const chartData=
-        closed
-            .slice()
-            .reverse();
-
-
-    const maxAbs=
-        Math.max(
-            1,
-            ...chartData.map(
-                x=>Math.abs(n(x.pnl))
-            )
-        );
-
-
-    const chartBars=
-        chartData.map(x=>{
-
-            const height=
-                Math.max(
-                    6,
-                    Math.min(
-                        100,
-                        Math.abs(n(x.pnl))/
-                        maxAbs*
-                        100
-                    )
-                );
-
-
-            return`
-
-<div
-class="chart-bar ${
-    n(x.pnl)<0
-        ?'loss'
-        :''
-}"
-style="height:${height}%"
-title="${escapeHtml(x.symbol)} • ${
-    n(x.pnl)>=0?'+':''
-}${fmtPnl(x.pnl)} USDT">
-</div>
-
-`;
-        })
-        .join('');
-
-
-    const pnlClass=
-        totalPnl>=0
-            ?'performance-positive'
-            :'performance-negative';
-
-
-    el.innerHTML=`
-
-<div class="performance-grid">
-
-
-<div class="performance-card">
-
-<span>
-TOPLAM İŞLEM
-</span>
-
-<b>
-${total}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-WIN RATE
-</span>
-
-<b class="${
-    winRate>=50
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${winRate.toFixed(1)}%
-
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-🏆 KAZANAN
-</span>
-
-<b class="performance-positive">
-${wins.length}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-⚠ KAYBEDEN
-</span>
-
-<b class="performance-negative">
-${losses.length}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-BERABERE
-</span>
-
-<b class="performance-neutral">
-${breakeven.length}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-ORTALAMA PNL
-</span>
-
-<b class="${
-    avgPnl>=0
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${avgPnl>=0?'+':''}
-${fmtPnl(avgPnl)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<span>
-💰 TOPLAM PNL
-</span>
-
-<b class="${pnlClass}">
-
-${totalPnl>=0?'+':''}
-${fmtPnl(totalPnl)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-PROFIT FACTOR
-</span>
-
-<b>
-
-${
-    Number.isFinite(profitFactor)
-        ?profitFactor.toFixed(2)
-        :'∞'
-}
-
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-MAKS. DRAWDOWN
-</span>
-
-<b class="performance-negative">
-
--${fmtPnl(maxDrawdown)}
-USDT
-
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-ORTALAMA R/R
-</span>
-
-<b>
-${avgRR.toFixed(2)}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-ORTALAMA SKOR
-</span>
-
-<b>
-${
-    scored.length
-        ?avgScore.toFixed(1)
-        :'—'
-}
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-ORT. KAZANÇ
-</span>
-
-<b class="performance-positive">
-+${fmtPnl(avgWin)} USDT
-</b>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-ORT. KAYIP
-</span>
-
-<b class="performance-negative">
-${fmtPnl(avgLoss)} USDT
-</b>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<span>
-65+ SKOR WIN RATE
-</span>
-
-<b class="${
-    rate65>=50
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${
-    score65.length
-        ?rate65.toFixed(1)+'%'
-        :'—'
-}
-
-</b>
-
-<div class="muted">
-
-${score65.length} işlem
-
-</div>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-70+ SKOR
-</span>
-
-<b>
-${
-    score70.length
-        ?rate70.toFixed(1)+'%'
-        :'—'
-}
-</b>
-
-<div class="muted">
-${score70.length} işlem
-</div>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-75+ SKOR
-</span>
-
-<b>
-${
-    score75.length
-        ?rate75.toFixed(1)+'%'
-        :'—'
-}
-</b>
-
-<div class="muted">
-${score75.length} işlem
-</div>
-
-</div>
-
-
-<div class="performance-card">
-
-<span>
-80+ SKOR
-</span>
-
-<b>
-${
-    score80.length
-        ?rate80.toFixed(1)+'%'
-        :'—'
-}
-</b>
-
-<div class="muted">
-${score80.length} işlem
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<span>
-🏆 EN İYİ İŞLEM
-</span>
-
-<b class="performance-positive">
-
-${escapeHtml(best?.symbol||'—')}
-
-</b>
-
-<div class="muted">
-
-${best?.side||'—'}
-
-•
-
-${n(best?.pnl)>=0?'+':''}
-${fmtPnl(best?.pnl)}
-USDT
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<span>
-⚠ EN KÖTÜ İŞLEM
-</span>
-
-<b class="performance-negative">
-
-${escapeHtml(worst?.symbol||'—')}
-
-</b>
-
-<div class="muted">
-
-${worst?.side||'—'}
-
-•
-
-${n(worst?.pnl)>=0?'+':''}
-${fmtPnl(worst?.pnl)}
-USDT
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<div class="performance-title">
-🟢 LONG PERFORMANSI
-</div>
-
-
-<div class="performance-row">
-
-<span>İşlem</span>
-
-<b>${longs.length}</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Kazanan</span>
-
-<b class="performance-positive">
-${longWins.length}
-</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Win Rate</span>
-
-<b class="${
-    longRate>=50
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${longRate.toFixed(1)}%
-
-</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Toplam PNL</span>
-
-<b class="${
-    longPnl>=0
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${longPnl>=0?'+':''}
-${fmtPnl(longPnl)}
-USDT
-
-</b>
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<div class="performance-title">
-🔴 SHORT PERFORMANSI
-</div>
-
-
-<div class="performance-row">
-
-<span>İşlem</span>
-
-<b>${shorts.length}</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Kazanan</span>
-
-<b class="performance-positive">
-${shortWins.length}
-</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Win Rate</span>
-
-<b class="${
-    shortRate>=50
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${shortRate.toFixed(1)}%
-
-</b>
-
-</div>
-
-
-<div class="performance-row">
-
-<span>Toplam PNL</span>
-
-<b class="${
-    shortPnl>=0
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${shortPnl>=0?'+':''}
-${fmtPnl(shortPnl)}
-USDT
-
-</b>
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<div class="performance-title">
-
-📈 İŞLEM PNL GRAFİĞİ
-
-</div>
-
-<div class="performance-chart">
-
-<div class="chart-bars">
-
-${chartBars}
-
-</div>
-
-</div>
-
-<div class="performance-note">
-
-Her çubuk bir kapanmış paper işlemini temsil eder.
-Yeşil kazanç, kırmızı kayıp işlemdir.
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<div class="performance-title">
-
-📊 EQUITY DURUMU
-
-</div>
-
-<div class="performance-row">
-
-<span>
-Başlangıç
-</span>
-
-<b>
-0.00 USDT
-</b>
-
-</div>
-
-<div class="performance-row">
-
-<span>
-En yüksek
-</span>
-
-<b class="performance-positive">
-
-${equityMax>=0?'+':''}
-${fmtPnl(equityMax)}
-USDT
-
-</b>
-
-</div>
-
-<div class="performance-row">
-
-<span>
-En düşük
-</span>
-
-<b class="performance-negative">
-
-${equityMin>=0?'+':''}
-${fmtPnl(equityMin)}
-USDT
-
-</b>
-
-</div>
-
-<div class="performance-row">
-
-<span>
-Sonuç
-</span>
-
-<b class="${
-    totalPnl>=0
-        ?'performance-positive'
-        :'performance-negative'
-}">
-
-${totalPnl>=0?'+':''}
-${fmtPnl(totalPnl)}
-USDT
-
-</b>
-
-</div>
-
-</div>
-
-
-<div class="performance-card performance-wide">
-
-<div class="performance-title">
-
-🚪 KAPANIŞ NEDENLERİ
-
-</div>
-
-${
-    Object.entries(reasons)
-        .sort(
-            (a,b)=>b[1]-a[1]
-        )
-        .map(
-            ([reason,count])=>`
-
-<div class="performance-row">
-
-<span>
-${escapeHtml(reason)}
-</span>
-
-<b>
-${count}
-</b>
-
-</div>
-
-`
-        )
-        .join('')
-}
-
-</div>
-
-
-</div>
-
-`;
-}
-
-
-/* =========================================================
-   AYARLAR
-   ========================================================= */
-
-function saveSettings(){
-
-    const m=
-        Math.min(
-            95,
-            Math.max(
-                50,
-                n($('minScore')?.value)||65
-            )
-        );
-
-
-    const s=
-        Math.min(
-            600,
-            Math.max(
-                30,
-                n($('scanSeconds')?.value)||90
-            )
-        );
-
-
-    localStorage.setItem(
-        'minScore',
-        m
-    );
-
-
-    localStorage.setItem(
-        'scanSeconds',
-        s
-    );
-
-
-    if(scanTimer)
-        clearInterval(scanTimer);
-
-
-    scanTimer=
-        setInterval(
-            scan,
-            s*1000
-        );
-
-
-    render();
-
-
-    alert(
-        'V9 ayarları kaydedildi.'
-    );
-}
-
-
-function clearHistory(){
-
-    if(
-        !confirm(
-            'Paper işlem geçmişi silinsin mi?'
-        )
-    )
-        return;
-
-
-    localStorage.removeItem(
-        'paperHistory'
-    );
-
-
-    renderHistory();
-    renderTradeStats();
-    renderHistoryStats();
-    renderPerformance();
-
-
-    alert(
-        'Paper geçmişi temizlendi.'
-    );
-}
-
-
-/* =========================================================
-   TARAMA
-   ========================================================= */
-
-async function scan(){
-
-    if(
-        busy||
-        !tickers.size
-    )
-        return;
-
-
-    busy=true;
-
-
-    if($('refresh'))
-        $('refresh').textContent=
-            'V9 teknik motoru hesaplıyor…';
-
-
-    try{
-
-        const top=
-            [...tickers.values()]
-            .filter(
-                x=>
-                    x.s?.endsWith('USDT')&&
-                    n(x.q)>1000000&&
-                    n(x.c)>0
-            )
-            .sort(
-                (a,b)=>
-                    n(b.q)-n(a.q)
-            )
-            .slice(0,8);
-
-
-        const out=[];
-
-
-        for(
-            let i=0;
-            i<top.length;
-            i+=2
-        ){
-
-            const r=
-                await Promise.all(
-                    top
-                    .slice(i,i+2)
-                    .map(
-                        x=>
-                            analyze(
-                                x.s,
-                                x
-                            )
-                            .catch(
-                                ()=>null
-                            )
-                    )
-                );
-
-
-            out.push(
-                ...r.filter(Boolean)
-            );
-
-
-            await sleep(250);
-        }
-
-
-        signals=
-            out.sort(
-                (a,b)=>
-                    Math.abs(b.score-50)-
-                    Math.abs(a.score-50)
-            );
-
-
-        lastScan=Date.now();
-
-
-        render();
-
-
-        if(currentView==='markets')
-            renderMarkets();
-
-
-        if(currentView==='trade')
-            populateTrade();
-
-
-        if(currentView==='history')
-            renderHistory();
-
-
-        if(currentView==='performance')
-            renderPerformance();
-
-
-        if($('refresh')){
-
-            $('refresh').textContent=
-                'Son tarama '+
-                new Date(lastScan)
-                    .toLocaleTimeString('tr-TR')+
-                ' • V9 • 8 yüksek hacimli coin';
-        }
-
-
-    }catch(e){
-
-        if($('refresh')){
-
-            $('refresh').textContent=
-                'Tarama hatası: '+
-                e.message;
-        }
-
-
-    }finally{
-
-        busy=false;
-    }
-}
-
-
-/* =========================================================
-   WEBSOCKET
-   ========================================================= */
-
-function connect(){
-
-    try{
-
-        ws=new WebSocket(WS);
-
-
-        ws.onopen=()=>{
-
-            if($('status')){
-
-                $('status').textContent=
-                    '● CANLI';
-
-                $('status')
-                    .classList.add('live');
-            }
-        };
-
-
-        ws.onmessage=e=>{
-
-            try{
-
-                const data=
-                    JSON.parse(e.data);
-
-
-                const a=
-                    data.data||[];
-
-
-                a.forEach(x=>{
-
-                    if(x?.s)
-                        tickers.set(
-                            x.s,
-                            x
-                        );
-                });
-
-
-                if(
-                    currentView==='markets'
-                )
-                    renderMarkets();
-
-
-                if(getOpenPosition()){
-
-                    renderOpenPosition();
-
-
-                    if(
-                        currentView==='history'
-                    )
-                        renderHistory();
-                }
-
-
-                if(
-                    Date.now()-lastScan>
-                    (
-                        n(
-                            localStorage.getItem(
-                                'scanSeconds'
-                            )
-                        )||90
-                    )*1000
-                )
-                    scan();
-
-
-            }catch(_){}
-        };
-
-
-        ws.onclose=()=>{
-
-            if($('status')){
-
-                $('status').textContent=
-                    'YENİDEN BAĞLANIYOR';
-
-                $('status')
-                    .classList.remove('live');
-            }
-
-
-            setTimeout(
-                connect,
-                2000
-            );
-        };
-
-
-        ws.onerror=()=>{
-
-            try{
-                ws.close();
-            }catch(_){}
-        };
-
-
-    }catch(_){
-
-        setTimeout(
-            connect,
-            3000
-        );
-    }
-}
-
-/* =========================================================
-   V10.4 POSITION TICK
-   ---------------------------------------------------------
-   Position Manager'ın tek periyodik çalışma noktası.
-   TP1 / TP2 / TP3
-   Break-Even
-   Trailing Stop
-   SL
-   PNL
-========================================================= */
-
-function positionTick(){
-
-    const position=
-        getOpenPosition();
-
-
-    /* -----------------------------------------------------
-       POZİSYON YOK
-    ----------------------------------------------------- */
-
-    if(!position){
-
-        if(
-            currentView==='trade'
-        ){
-
-            renderOpenPosition();
-            renderTradeStats();
-
-        }
-
-        return;
-
-    }
-
-
-    /* -----------------------------------------------------
-       GÜNCEL FİYAT
-    ----------------------------------------------------- */
-
-    const ticker=
-        tickers.get(
-            position.symbol
-        );
-
-
-    const currentPrice=
-        n(ticker?.c)||
-        n(position.currentPrice);
-
-
-    if(!currentPrice){
-
-        return;
-
-    }
-
-
-    /* -----------------------------------------------------
-       V10.4 MANAGER
-       -----------------------------------------------------
-       Burada yalnızca Manager çalıştırılır.
-       Render fonksiyonu tekrar Manager çağırmaz.
-    ----------------------------------------------------- */
-
-    let managerResult=null;
-
-
-    if(
-        window.FSSPositionManagerV104 &&
-        typeof
-        window.FSSPositionManagerV104.manage
-        === 'function'
-    ){
-
-        try{
-
-            managerResult=
-                window.FSSPositionManagerV104.manage(
-                    position,
-                    currentPrice
-                );
-
-        }catch(error){
-
-            console.error(
-                'V10.4 Position Manager hatası:',
-                error
-            );
-
-        }
-
-    }
-
-
-/* -----------------------------------------------------
-   POZİSYON KAPANDI
-   V10.5 FINALIZATION
------------------------------------------------------ */
-
-if(
-    managerResult?.closed ||
-    position.closed
-){
-
-    const reason =
-        position.exitReason ||
-        position.closeReason ||
-        'OTOMATİK';
-
-    try{
-
-        closePaperPosition(
-            reason,
-            currentPrice,
-            true
-        );
-
-    }catch(error){
-
-        console.error(
-            'V10.5 otomatik kapanış hatası:',
-            error
-        );
-
-    }
-
-    return;
-
-}
-
-   
-    /* -----------------------------------------------------
-       FİYATI GÜNCELLE
-    ----------------------------------------------------- */
-
-    position.currentPrice=
-        currentPrice;
-
-
-    /* -----------------------------------------------------
-       PNL
-    ----------------------------------------------------- */
-
-    const result=
-        calculatePnl(
-            position,
-            currentPrice
-        );
-
-
-    position.lastPnl=
-        result.pnl;
-
-
-    position.maxPnl=
-        Math.max(
-            n(position.maxPnl),
-            result.pnl
-        );
-
-
-    position.minPnl=
-        Math.min(
-            n(position.minPnl),
-            result.pnl
-        );
-
-
-    position.updatedAt=
-        Date.now();
-
-
-    saveOpenPosition(
-        position
-    );
-
-
-    /* -----------------------------------------------------
-       EKRANI YENİLE
-    ----------------------------------------------------- */
-
-    renderOpenPosition();
-
-
-    if(
-        currentView==='history'
-    ){
-
-        renderHistory();
-
-    }
-
-
-    if(
-        currentView==='trade'
-    ){
-
-        renderTradeStats();
-
-    }
-
-}
-
-
-
-/* =========================================================
-   EVENTLER
-   ========================================================= */
-
-function bindEvents(){
-
-    const tradeCoin=
-        $('tradeCoin');
-
-
-    if(tradeCoin){
-
-        tradeCoin.addEventListener(
-            'change',
-            applyTradeFromSelection
-        );
-    }
-
-
-    [
-        'tradeEntry',
-        'tradeSL',
-        'tradeTP1',
-        'tradeTP2',
-        'tradeTP3',
-        'tradeLev',
-        'tradeCapital'
-    ].forEach(id=>{
-
-        const el=$(id);
-
-        if(el){
-
-            el.addEventListener(
-                'input',
-                calcTrade
-            );
-        }
-    });
-}
-
-
-/* =========================================================
-   V9 BAŞLANGIÇ
-   ========================================================= */
-
-function initV9(){
-
-    bindEvents();
-
-    ensureV9TradeUI();
-
-    ensureV9HistoryUI();
-
-    render();
-
-    renderOpenPosition();
-
-    renderHistory();
-
-    renderTradeStats();
-
-    renderHistoryStats();
-
-    renderPerformance();
-
-    connect();
-
-    scan();
-
-
-    const seconds=
-        n(
-            localStorage.getItem(
-                'scanSeconds'
-            )
-        )||90;
-
-
-    scanTimer=
-        setInterval(
-            scan,
-            seconds*1000
-        );
-
-
-    positionTimer=
-        setInterval(
-            positionTick,
-            1000
-        );
-}
-
-
-/* =========================================================
-   BAŞLAT
-   ========================================================= */
-
-
-
-/* =========================================================
-   V10 BAŞLANGIÇ
-========================================================= */
-
-function initV10(){
-    initV9();
-
-    console.log("Futures Signal Scanner V10 başlatıldı.");
-
-
-
-    // İşlem formu mevcut sinyalle doldurulabiliyorsa
-    // mevcut V9 verisini kullan
-    if (typeof populateTradeCoins === "function") {
-        populateTradeCoins();
-    }
-
-    if (typeof updateTradeCalculator === "function") {
-        updateTradeCalculator();
-    }
-}
-
-/* =========================================================
-   TEK BAŞLANGIÇ NOKTASI
-========================================================= */
-
-initV10();
-
-
-
-/* =========================================================
-   V10.2 AUTO ENGINE CORE
-   ---------------------------------------------------------
-   Amaç:
-   - Gerçek V9/V10 "signals" dizisine bağlanmak
-   - En güçlü geçerli sinyali seçmek
-   - PAPER otomatik işlem açmak
-   - Risk kontrolü
-   - Maksimum açık pozisyon kontrolü
-   - Günlük zarar limiti
-   - Aynı coin cooldown
-   - LONG / SHORT izinleri
-   - Kill Switch
-   - Motor durumunu görünür tutmak
-   ---------------------------------------------------------
-   NOT:
-   TESTNET / LIVE emir göndermez.
-   Bu sürüm yalnızca PAPER çalışır.
-========================================================= */
-
-(function(){
-
-    "use strict";
-
-    console.log(
-        "V10.2 Auto Engine Core yükleniyor..."
-    );
-
-
-    /* =====================================================
-       V10.2 AYAR ANAHTARI
-    ===================================================== */
-
-    const V102_KEY =
-        "fss_v102_auto_engine";
-
-
-    /* =====================================================
-       VARSAYILAN AYARLAR
-    ===================================================== */
-
-    const V102_DEFAULTS = {
-
-        enabled:false,
-
-        mode:"PAPER",
-
-        minScore:70,
-
-        riskPercent:1,
-
-        maxRiskPercent:3,
-
-        maxOpenPositions:1,
-
-        maxDailyLossPercent:3,
-
-        allowLong:true,
-
-        allowShort:true,
-
-        sameSymbolCooldownMinutes:30,
-
-        capital:100,
-
-        leverage:5,
-
-        cooldownAfterLossMinutes:15,
-
-        requireConfirmation:false,
-
-        killSwitch:false
-
-    };
-
-
-    /* =====================================================
-       AYARLARI YÜKLE
-    ===================================================== */
-
-    function loadV102(){
-
-        try{
-
-            const raw =
-                localStorage.getItem(V102_KEY);
-
-            if(raw){
-
-                return {
-
-                    ...V102_DEFAULTS,
-
-                    ...JSON.parse(raw)
-
-                };
-
-            }
-
-        }catch(error){
-
-            console.warn(
-                "V10.2 ayarları okunamadı:",
-                error
-            );
-
-        }
-
-        return {
-            ...V102_DEFAULTS
-        };
-
-    }
-
-
-    let cfg =
-        loadV102();
-
-
-    /* =====================================================
-       MOTOR DURUMU
-    ===================================================== */
-
-    const state = {
-
-        running:false,
-
-        lastAction:"Hazır",
-
-        lastError:null,
-
-        lastSymbol:null,
-
-        lastSide:null,
-
-        lastScore:null,
-
-        lastOpenAt:null,
-
-        blockedReason:null,
-
-        totalAutoOpened:0,
-
-        totalBlocked:0
-
-    };
-
-
-    /* =====================================================
-       YARDIMCI
-    ===================================================== */
-
-    function number(value,fallback=0){
-
-        const n =
-            Number(value);
-
-        return Number.isFinite(n)
-            ? n
-            : fallback;
-
-    }
-
-
-    function getSignals(){
-
-        /*
-         * V9/V10 tarama motorunun gerçek
-         * sinyal dizisi:
-         *
-         * signals
-         */
-
-        try{
-
-            if(
-                typeof signals !== "undefined" &&
-                Array.isArray(signals)
-            ){
-
-                return signals;
-
-            }
-
-        }catch(error){
-
-            console.warn(
-                "signals okunamadı:",
-                error
-            );
-
-        }
-
-        return [];
-
-    }
-
-
-    function getSymbol(signal){
-
-        return String(
-
-            signal?.symbol ??
-            signal?.coin ??
-            signal?.s ??
-            ""
-
-        ).toUpperCase();
-
-    }
-
-
-    function getSide(signal){
-
-        const raw =
-            String(
-
-                signal?.side ??
-                signal?.direction ??
-                ""
-
-            ).toUpperCase();
-
-
-        if(
-            raw === "LONG" ||
-            raw === "BUY"
-        ){
-
-            return "LONG";
-
-        }
-
-
-        if(
-            raw === "SHORT" ||
-            raw === "SELL"
-        ){
-
-            return "SHORT";
-
-        }
-
-
-        return null;
-
-    }
-
-
-    function getScore(signal){
-
-        return number(
-
-            signal?.score ??
-            signal?.technicalScore ??
-            signal?.strength,
-
-            0
-
-        );
-
-    }
-
-
-    function getTickerPrice(symbol){
-
-        try{
-
-            if(
-                typeof tickers !== "undefined" &&
-                tickers &&
-                typeof tickers.get === "function"
-            ){
-
-                const ticker =
-                    tickers.get(symbol);
-
-                return number(
-                    ticker?.c,
-                    0
-                );
-
-            }
-
-        }catch(_){}
-
-        return 0;
-
-    }
-
-
-    /* =====================================================
-       AÇIK POZİSYON
-    ===================================================== */
-
-    function getOpenPositionSafe(){
-
-        try{
-
-            if(
-                typeof getOpenPosition ===
-                "function"
-            ){
-
-                return getOpenPosition();
-
-            }
-
-        }catch(error){
-
-            console.warn(
-                "Açık pozisyon kontrolü:",
-                error
-            );
-
-        }
-
-        return null;
-
-    }
-
-
-    function hasOpenPosition(){
-
-        return !!getOpenPositionSafe();
-
-    }
-
-
-    /* =====================================================
-       GEÇMİŞ
-    ===================================================== */
-
-    function getHistorySafe(){
-
-        try{
-
-            if(
-                typeof getHistory ===
-                "function"
-            ){
-
-                const h =
-                    getHistory();
-
-                return Array.isArray(h)
-                    ? h
-                    : [];
-
-            }
-
-        }catch(_){}
-
-        try{
-
-            const raw =
-                localStorage.getItem(
-                    "paperHistory"
-                );
-
-            if(raw){
-
-                const parsed =
-                    JSON.parse(raw);
-
-                return Array.isArray(parsed)
-                    ? parsed
-                    : [];
-
-            }
-
-        }catch(_){}
-
-        return [];
-
-    }
-
-
-  /* =====================================================
-   BUGÜNKÜ PNL
-   Sadece KAPANMIŞ işlemler hesaba katılır.
-===================================================== */
-
-function getTodayPnL(){
-
-    const history =
-        getHistorySafe();
-
-
-    const now =
-        new Date();
-
-
-    const year =
-        now.getFullYear();
-
-
-    const month =
-        now.getMonth();
-
-
-    const day =
-        now.getDate();
-
-
-    return history.reduce(
-
-        (sum,item)=>{
-
-            if(!item)
-                return sum;
-
-
-            /*
-             * Açık veya yarım kalmış pozisyonları
-             * günlük PNL hesabına dahil etme.
-             */
-
-            const status =
-                String(
-                    item.status ??
-                    ''
-                ).toLowerCase();
-
-
-            const isClosed =
-                item.closedAt &&
-                (
-                    status === 'kapalı' ||
-                    status === 'closed' ||
-                    item.closed === true
-                );
-
-
-            if(!isClosed)
-                return sum;
-
-
-            const d =
-                new Date(
-                    item.closedAt
-                );
-
-
-            if(
-                Number.isNaN(
-                    d.getTime()
-                )
-            ){
-
-                return sum;
-
-            }
-
-
-            if(
-                d.getFullYear() !== year ||
-                d.getMonth() !== month ||
-                d.getDate() !== day
-            ){
-
-                return sum;
-
-            }
-
-
-            return sum +
-                number(
-                    item.pnl,
-                    0
-                );
-
-        },
-
-        0
-
-    );
-
-}
-
-
-   /* =====================================================
-   GÜNLÜK ZARAR KONTROLÜ
-   V10.5 Stabil
-===================================================== */
-
-function dailyLossAllowed(){
-
-    const capital =
-        Math.max(
-            number(
-                cfg.capital,
-                100
-            ),
-            1
-        );
-
-
-    const maxLossPct =
-        Math.max(
-            number(
-                cfg.maxDailyLossPercent,
-                3
-            ),
-            0
-        );
-
-
-    const maxLoss =
-        capital *
-        maxLossPct /
-        100;
-
-
-    const todayPnL =
-        getTodayPnL();
-
-
-    /*
-     * Günlük zarar limiti aşıldıysa
-     * yeni işlem açma.
-     *
-     * Aynı engeli her tick'te
-     * tekrar tekrar sayma.
-     */
-
-    if(
-        todayPnL <= -maxLoss
-    ){
-
-        const reason =
-            "Günlük zarar limiti aşıldı.";
-
-
-        state.blockedReason =
-            reason;
-
-
-        if(
-            state.lastBlockedReason !==
-            reason
-        ){
-
-            state.totalBlocked++;
-
-
-            state.lastBlockedReason =
-                reason;
-
-        }
-
-
-        return false;
-
-    }
-
-
-    /*
-     * Limit tekrar uygun hale geldiyse
-     * sayaç kilidini temizle.
-     */
-
-    if(
-        state.lastBlockedReason ===
-        "Günlük zarar limiti aşıldı."
-    ){
-
-        state.lastBlockedReason =
-            "";
-
-    }
-
-
-    return true;
-
-}
-   
-
-    /* =====================================================
-       RİSK KONTROLÜ
-    ===================================================== */
-
-    function riskAllowed(){
-
-        const risk =
-            number(
-                cfg.riskPercent,
-                1
-            );
-
-
-        const maxRisk =
-            number(
-                cfg.maxRiskPercent,
-                3
-            );
-
-
-        if(risk <= 0){
-
-            state.blockedReason =
-                "Risk yüzdesi 0 veya daha düşük.";
-
-            state.totalBlocked++;
-
-            return false;
-
-        }
-
-
-        if(risk > maxRisk){
-
-            state.blockedReason =
-                "İşlem riski maksimum risk limitini aşıyor.";
-
-            state.totalBlocked++;
-
-            return false;
-
-        }
-
-
-        return true;
-
-    }
-
-
-    /* =====================================================
-       AYNI COIN COOLDOWN
-    ===================================================== */
-
-    function getLastTradeTime(symbol){
-
-        const history =
-            getHistorySafe();
-
-
-        let latest = 0;
-
-
-        history.forEach(item=>{
-
-            if(
-                String(
-                    item?.symbol ??
-                    ""
-                ).toUpperCase()
-                !== symbol
-            ){
-
-                return;
-
-            }
-
-
-            const t =
-                new Date(
-
-                    item.closedAt ??
-                    item.openedAt ??
-                    item.createdAt ??
-                    0
-
-                ).getTime();
-
-
-            if(
-                Number.isFinite(t) &&
-                t > latest
-            ){
-
-                latest = t;
-
-            }
-
-        });
-
-
-        return latest;
-
-    }
-
-
-    function cooldownAllowed(symbol){
-
-        const minutes =
-            Math.max(
-                number(
-                    cfg.sameSymbolCooldownMinutes,
-                    30
+        history.length;
+
+
+    const pnl=
+        history.reduce(
+            (sum,p)=>
+                sum+
+                n(
+                    p.realizedNetPnl??
+                    p.realizedPNL
                 ),
-                0
-            );
-
-
-        if(minutes === 0)
-            return true;
-
-
-        const last =
-            getLastTradeTime(symbol);
-
-
-        if(!last)
-            return true;
-
-
-        const elapsed =
-            Date.now() -
-            last;
-
-
-        const wait =
-            minutes *
-            60 *
-            1000;
-
-
-        if(elapsed < wait){
-
-            const remain =
-                Math.ceil(
-                    (
-                        wait -
-                        elapsed
-                    ) /
-                    60000
-                );
-
-
-            state.blockedReason =
-                `${symbol} cooldown aktif. `+
-                `${remain} dk kaldı.`;
-
-            state.totalBlocked++;
-
-            return false;
-
-        }
-
-
-        return true;
-
-    }
-
-
-    /* =====================================================
-       SİNYAL TEYİDİ
-    ===================================================== */
-
-    function confirmationAllowed(signal){
-
-        if(!cfg.requireConfirmation)
-            return true;
-
-
-        const confirmation =
-            String(
-                signal?.confirmation ??
-                ""
-            ).toUpperCase();
-
-
-        const aligned =
-            signal?.alignedLong ||
-            signal?.alignedShort;
-
-
-        if(
-            confirmation.includes("TEYİT") ||
-            confirmation.includes("CONFIRM") ||
-            aligned === true
-        ){
-
-            return true;
-
-        }
-
-
-        state.blockedReason =
-            "Sinyal teyit şartını karşılamıyor.";
-
-        state.totalBlocked++;
-
-        return false;
-
-    }
-
-
-  /* =====================================================
-   V10.5 DECISION ENGINE
-   EN İYİ SİNYAL
-   -----------------------------------------------------
-   V10.2 Auto Engine → V10.5 karar katmanı
-   Gerçek emir göndermez.
-===================================================== */
-
-function findBestSignal(){
-
-    const list =
-        getSignals();
-
-
-    if(!list.length){
-
-        state.blockedReason =
-            "Henüz geçerli sinyal yok.";
-
-        return null;
-
-    }
-
-
-    const candidates =
-
-        list
-
-        .filter(Boolean)
-
-        .map(signal=>{
-
-            const symbol =
-                getSymbol(signal);
-
-            const side =
-                getSide(signal);
-
-            const rawScore =
-                getScore(signal);
-
-
-            /*
-             * LONG:
-             *   80 skor = 80 LONG gücü
-             *
-             * SHORT:
-             *   20 skor = 80 SHORT gücü
-             */
-
-            let decisionScore =
-                rawScore;
-
-
-            if(side==="SHORT"){
-
-                decisionScore =
-                    100 -
-                    rawScore;
-
-            }
-
-
-            return {
-
-                signal,
-
-                symbol,
-
-                side,
-
-                rawScore,
-
-                decisionScore
-
-            };
-
-        })
-
-
-        .filter(item=>{
-
-            if(!item.symbol)
-                return false;
-
-
-            if(
-                item.side!=="LONG" &&
-                item.side!=="SHORT"
-            ){
-
-                return false;
-
-            }
-
-
-            /*
-             * Yön ayarları
-             */
-
-            if(
-                item.side==="LONG" &&
-                !cfg.allowLong
-            ){
-
-                return false;
-
-            }
-
-
-            if(
-                item.side==="SHORT" &&
-                !cfg.allowShort
-            ){
-
-                return false;
-
-            }
-
-
-            /*
-             * Mevcut teyit filtresini koruyoruz.
-             */
-
-            if(
-                !confirmationAllowed(
-                    item.signal
-                )
-            ){
-
-                return false;
-
-            }
-
-
-            /*
-             * V10.5 karar skoru.
-             */
-
-            if(
-                item.decisionScore <
-                number(
-                    cfg.minScore,
-                    70
-                )
-            ){
-
-                return false;
-
-            }
-
-
-            return true;
-
-        });
-
-
-    /*
-     * =====================================================
-     * V10.5 KALİTE PUANLAMASI
-     * =====================================================
-     */
-
-    candidates.forEach(item=>{
-
-        let bonus=0;
-
-
-        const signal =
-            item.signal;
-
-
-        /*
-         * 1H + 15M + 5M aynı yönde mi?
-         */
-
-        const alignedLong =
-            !!signal.alignedLong;
-
-
-        const alignedShort =
-            !!signal.alignedShort;
-
-
-        if(
-            item.side==="LONG" &&
-            alignedLong
-        ){
-
-            bonus+=6;
-
-        }
-
-
-        if(
-            item.side==="SHORT" &&
-            alignedShort
-        ){
-
-            bonus+=6;
-
-        }
-
-
-        /*
-         * Teyit metni.
-         */
-
-        const confirmation =
-            String(
-                signal.confirmation ||
-                ""
-            ).toUpperCase();
-
-
-        if(
-            confirmation.includes(
-                "TEYİT EDİLDİ"
-            )
-        ){
-
-            bonus+=4;
-
-        }
-
-
-        /*
-         * Kalite.
-         */
-
-        const quality =
-            String(
-                signal.quality ||
-                ""
-            ).toUpperCase();
-
-
-        if(
-            quality.includes("ÇOK GÜÇLÜ")
-        ){
-
-            bonus+=5;
-
-        }else if(
-            quality.includes("GÜÇLÜ")
-        ){
-
-            bonus+=3;
-
-        }
-
-
-        /*
-         * Hacim.
-         */
-
-        const volume =
-            number(
-                signal.vr,
-                1
-            );
-
-
-        if(volume>=1.5){
-
-            bonus+=4;
-
-        }else if(volume>=1.25){
-
-            bonus+=2;
-
-        }
-
-
-        /*
-         * Risk / ödül.
-         */
-
-        const rr =
-            number(
-                signal.rr1,
-                0
-            );
-
-
-        if(rr>=2){
-
-            bonus+=5;
-
-        }else if(rr>=1.5){
-
-            bonus+=3;
-
-        }else if(rr<1.2){
-
-            bonus-=5;
-
-        }
-
-
-        /*
-         * Nihai karar skoru.
-         */
-
-        item.finalScore =
-            Math.max(
-                0,
-                Math.min(
-                    100,
-                    Math.round(
-                        item.decisionScore +
-                        bonus
-                    )
-                )
-            );
-
-
-        /*
-         * V10.5 karar bilgisi.
-         */
-
-        item.signal.v105DecisionScore =
-            item.finalScore;
-
-
-        item.signal.v105Action =
-            item.side;
-
-
-        item.signal.v105Reason =
-            "V10.5 Decision Engine";
-
-
-    });
-
-
-    /*
-     * =====================================================
-     * ADAYLARI SIRALA
-     * =====================================================
-     */
-
-    candidates.sort(
-
-        (a,b)=>{
-
-            /*
-             * Önce V10.5 nihai skor.
-             */
-
-            const scoreDiff =
-                b.finalScore -
-                a.finalScore;
-
-
-            if(scoreDiff!==0)
-                return scoreDiff;
-
-
-            /*
-             * Sonra teknik karar skoru.
-             */
-
-            const technicalDiff =
-                b.decisionScore -
-                a.decisionScore;
-
-
-            if(technicalDiff!==0)
-                return technicalDiff;
-
-
-            /*
-             * Son olarak teyit.
-             */
-
-            const aConfirm =
-                a.signal?.alignedLong ||
-                a.signal?.alignedShort
-                    ?1
-                    :0;
-
-
-            const bConfirm =
-                b.signal?.alignedLong ||
-                b.signal?.alignedShort
-                    ?1
-                    :0;
-
-
-            return bConfirm -
-                   aConfirm;
-
-        }
-
-    );
-
-
-    /*
-     * =====================================================
-     * İŞLEM ADAYI
-     * =====================================================
-     */
-
-    if(!candidates.length){
-
-        state.blockedReason =
-            "V10.5 Decision Engine uygun işlem bulamadı.";
-
-        state.lastAction =
-            "V10.5 → WAIT";
-
-        return null;
-
-    }
-
-
-    const best =
-        candidates[0];
-
-
-    /*
-     * Güvenlik kontrolü.
-     */
-
-    if(
-        best.finalScore <
-        number(
-            cfg.minScore,
-            70
-        )
-    ){
-
-        state.blockedReason =
-            "V10.5 karar skoru işlem eşiğinin altında.";
-
-        state.lastAction =
-            "V10.5 → WAIT";
-
-        return null;
-
-    }
-
-
-    /*
-     * Auto Engine durumunu güncelle.
-     */
-
-    state.lastSymbol =
-        best.symbol;
-
-
-    state.lastSide =
-        best.side;
-
-
-    state.lastScore =
-        best.finalScore;
-
-
-    state.lastAction =
-
-        "V10.5 → " +
-        best.side +
-        " • " +
-        best.symbol +
-        " • " +
-        best.finalScore +
-        "/100";
-
-
-    state.blockedReason =
-        null;
-
-
-    console.log(
-        "[V10.5 DECISION]",
-        {
-            symbol:
-                best.symbol,
-
-            side:
-                best.side,
-
-            technicalScore:
-                best.decisionScore,
-
-            finalScore:
-                best.finalScore,
-
-            rawScore:
-                best.rawScore
-        }
-    );
-
-
-    return best.signal;
-
-}
-
-   
-    /* =====================================================
-       SİNYALDEN FORMU DOLDUR
-    ===================================================== */
-
-    function fillTradeForm(signal){
-
-        const symbol =
-            getSymbol(signal);
-
-
-        const side =
-            getSide(signal);
-
-
-        const entry =
-            number(
-                signal?.entry,
-                0
-            );
-
-
-        const sl =
-            number(
-                signal?.sl,
-                0
-            );
-
-
-        const tp1 =
-            number(
-                signal?.tp1,
-                0
-            );
-
-
-        const tp2 =
-            number(
-                signal?.tp2,
-                0
-            );
-
-
-        const tp3 =
-            number(
-                signal?.tp3,
-                0
-            );
-
-
-        const price =
-            entry ||
-            getTickerPrice(symbol);
-
-
-        const coin =
-            document.getElementById(
-                "tradeCoin"
-            );
-
-
-        const sideEl =
-            document.getElementById(
-                "tradeSide"
-            );
-
-
-        const levEl =
-            document.getElementById(
-                "tradeLev"
-            );
-
-
-        const entryEl =
-            document.getElementById(
-                "tradeEntry"
-            );
-
-
-        const capitalEl =
-            document.getElementById(
-                "tradeCapital"
-            );
-
-
-        const slEl =
-            document.getElementById(
-                "tradeSL"
-            );
-
-
-        const tp1El =
-            document.getElementById(
-                "tradeTP1"
-            );
-
-
-        const tp2El =
-            document.getElementById(
-                "tradeTP2"
-            );
-
-
-        const tp3El =
-            document.getElementById(
-                "tradeTP3"
-            );
-
-
-        if(coin){
-
-            /*
-             * Coin select mevcutsa önce
-             * option oluşturmayı deniyoruz.
-             */
-
-            let found = false;
-
-
-            for(
-                let i=0;
-                i<coin.options.length;
-                i++
-            ){
-
-                if(
-                    coin.options[i].value ===
-                    symbol
-                ){
-
-                    coin.selectedIndex =
-                        i;
-
-                    found = true;
-
-                    break;
-
-                }
-
-            }
-
-
-            if(!found){
-
-                const option =
-                    document.createElement(
-                        "option"
-                    );
-
-                option.value =
-                    symbol;
-
-                option.textContent =
-                    symbol;
-
-                coin.appendChild(option);
-
-                coin.value =
-                    symbol;
-
-            }
-
-        }
-
-
-        if(sideEl && side){
-
-            sideEl.value =
-                side;
-
-        }
-
-
-        if(
-            levEl &&
-            number(cfg.leverage,5) > 0
-        ){
-
-            levEl.value =
-                String(
-                    number(
-                        cfg.leverage,
-                        5
-                    )
-                );
-
-        }
-
-
-        if(entryEl){
-
-            entryEl.value =
-                price || "";
-
-        }
-
-
-        if(capitalEl){
-
-            capitalEl.value =
-                number(
-                    cfg.capital,
-                    100
-                );
-
-        }
-
-
-        if(slEl){
-
-            slEl.value =
-                sl || "";
-
-        }
-
-
-        if(tp1El){
-
-            tp1El.value =
-                tp1 || "";
-
-        }
-
-
-        if(tp2El){
-
-            tp2El.value =
-                tp2 || "";
-
-        }
-
-
-        if(tp3El){
-
-            tp3El.value =
-                tp3 || "";
-
-        }
-
-
-        /*
-         * Mevcut hesaplama fonksiyonunu
-         * varsa çalıştır.
-         */
-
-        try{
-
-            if(
-                typeof calcTrade ===
-                "function"
-            ){
-
-                calcTrade();
-
-            }
-
-        }catch(_){}
-
-
-        return {
-
-            symbol,
-
-            side,
-
-            entry:
-                price,
-
-            sl,
-
-            tp1,
-
-            tp2,
-
-            tp3
-
-        };
-
-    }
-
-
-    /* =====================================================
-       OTOMATİK PAPER AÇ
-    ===================================================== */
-
-    function openPaper(signal){
-
-        const symbol =
-            getSymbol(signal);
-
-
-        const side =
-            getSide(signal);
-
-
-        if(!symbol || !side){
-
-            state.blockedReason =
-                "Sinyal coin/yön bilgisi eksik.";
-
-            state.totalBlocked++;
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        if(
-            hasOpenPosition()
-        ){
-
-            state.blockedReason =
-                "Zaten açık bir PAPER pozisyon var.";
-
-            state.totalBlocked++;
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        if(
-            number(
-                cfg.maxOpenPositions,
-                1
-            ) <= 0
-        ){
-
-            state.blockedReason =
-                "Maksimum açık pozisyon limiti 0.";
-
-            state.totalBlocked++;
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        if(!riskAllowed()){
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        if(!dailyLossAllowed()){
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        if(
-            !cooldownAllowed(symbol)
-        ){
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        const form =
-            fillTradeForm(signal);
-
-
-        if(
-            !form.entry ||
-            !form.sl ||
-            !form.tp1
-        ){
-
-            state.blockedReason =
-                `${symbol} için giriş / SL / TP1 bilgisi eksik.`;
-
-            state.totalBlocked++;
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.blockedReason
-
-            };
-
-        }
-
-
-        /*
-         * savePaperTrade() mevcut V9/V10
-         * motorunun PAPER kayıt fonksiyonudur.
-         */
-
-        try{
-
-            if(
-                typeof savePaperTrade !==
-                "function"
-            ){
-
-                throw new Error(
-                    "savePaperTrade() bulunamadı."
-                );
-
-            }
-
-
-            savePaperTrade();
-
-
-            /*
-             * İşlem gerçekten açıldı mı?
-             */
-
-            const opened =
-                getOpenPositionSafe();
-
-
-            if(!opened){
-
-                state.blockedReason =
-                    "Paper işlem oluşturulamadı.";
-
-                state.totalBlocked++;
-
-                return {
-
-                    ok:false,
-
-                    reason:
-                        state.blockedReason
-
-                };
-
-            }
-
-
-            state.lastSymbol =
-                symbol;
-
-            state.lastSide =
-                side;
-
-            state.lastScore =
-                getScore(signal);
-
-            state.lastOpenAt =
-                Date.now();
-
-            state.lastAction =
-                `${symbol} ${side} PAPER açıldı • `+
-                `Skor ${getScore(signal)}/100`;
-
-            state.lastError =
-                null;
-
-            state.blockedReason =
-                null;
-
-            state.totalAutoOpened++;
-
-
-            renderStatus();
-
-
-            return {
-
-                ok:true,
-
-                symbol,
-
-                side,
-
-                score:
-                    getScore(signal)
-
-            };
-
-        }catch(error){
-
-            state.lastError =
-                error?.message ??
-                String(error);
-
-
-            state.lastAction =
-                "Otomatik PAPER açılışında hata.";
-
-
-            state.totalBlocked++;
-
-
-            renderStatus();
-
-
-            return {
-
-                ok:false,
-
-                reason:
-                    state.lastError
-
-            };
-
-        }
-
-    }
-
-
-    /* =====================================================
-       ANA MOTOR
-    ===================================================== */
-
-    function tick(){
-
-        if(!cfg.enabled){
-
-            state.running =
-                false;
-
-            return;
-
-        }
-
-
-        if(cfg.killSwitch){
-
-            state.running =
-                false;
-
-            state.lastAction =
-                "🛑 KILL SWITCH aktif.";
-
-            renderStatus();
-
-            return;
-
-        }
-
-
-        if(
-            String(cfg.mode).toUpperCase()
-            !== "PAPER"
-        ){
-
-            state.running =
-                true;
-
-            state.lastAction =
-                `Mod ${cfg.mode}: `+
-                "V10.2 yalnızca PAPER çalıştırıyor.";
-
-            renderStatus();
-
-            return;
-
-        }
-
-
-        state.running =
-            true;
-
-
-        /*
-         * Aynı anda yalnızca belirlenen
-         * maksimum açık pozisyon sayısı.
-         *
-         * Mevcut PAPER altyapısı tek pozisyon
-         * tuttuğu için burada ikinci işlem
-         * açılmasını kesin olarak engelliyoruz.
-         */
-
-        if(
-            hasOpenPosition()
-        ){
-
-            state.lastAction =
-                "Açık PAPER pozisyon mevcut. "+
-                "Yeni işlem beklemede.";
-
-            renderStatus();
-
-            return;
-
-        }
-
-
-        const signal =
-            findBestSignal();
-
-
-        if(!signal){
-
-            state.lastAction =
-                state.blockedReason ||
-                "Uygun sinyal bekleniyor.";
-
-            renderStatus();
-
-            return;
-
-        }
-
-
-        const result =
-            openPaper(signal);
-
-
-        if(!result.ok){
-
-            state.lastAction =
-                result.reason ||
-                "İşlem açılmadı.";
-
-        }
-
-
-        renderStatus();
-
-    }
-
-
-    /* =====================================================
-       DURUM PANELİ
-    ===================================================== */
-
-    function renderStatus(){
-
-        const panel =
-            document.getElementById(
-                "autoEnginePanel"
-            );
-
-
-        if(!panel)
-            return;
-
-
-        const statusBox =
-            panel.querySelector(
-                ".v102-status"
-            );
-
-
-        if(statusBox){
-
-            let text;
-
-
-            if(cfg.killSwitch){
-
-                text =
-                    "🛑 KILL SWITCH";
-
-            }else if(cfg.enabled){
-
-                text =
-                    state.running
-                    ? "🟢 AKTİF"
-                    : "🟡 BEKLEMEDE";
-
-            }else{
-
-                text =
-                    "🔴 KAPALI";
-
-            }
-
-
-            statusBox.textContent =
-                text;
-
-        }
-
-
-        const actionBox =
-            panel.querySelector(
-                ".v102-action"
-            );
-
-
-        if(actionBox){
-
-            actionBox.textContent =
-                state.lastAction;
-
-        }
-
-
-        const errorBox =
-            panel.querySelector(
-                ".v102-error"
-            );
-
-
-        if(errorBox){
-
-            errorBox.textContent =
-                state.lastError
-                    ? "Hata: " +
-                      state.lastError
-                    : "";
-
-        }
-
-
-        const openedBox =
-            panel.querySelector(
-                ".v102-opened"
-            );
-
-
-        if(openedBox){
-
-            openedBox.textContent =
-                String(
-                    state.totalAutoOpened
-                );
-
-        }
-
-
-        const blockedBox =
-            panel.querySelector(
-                ".v102-blocked"
-            );
-
-
-        if(blockedBox){
-
-            blockedBox.textContent =
-                String(
-                    state.totalBlocked
-                );
-
-        }
-
-
-        const pnlBox =
-            panel.querySelector(
-                ".v102-pnl"
-            );
-
-
-        if(pnlBox){
-
-            const pnl =
-                getTodayPnL();
-
-
-            pnlBox.textContent =
-                (
-                    pnl >= 0
-                    ? "+"
-                    : ""
-                ) +
-                pnl.toFixed(2) +
-                " USDT";
-
-        }
-
-    }
-
-
-    /* =====================================================
-       PANEL OLUŞTUR
-    ===================================================== */
-
-    function renderPanel(){
-
-        const settingsView =
-            document.getElementById(
-                "settingsView"
-            );
-
-
-        if(!settingsView)
-            return;
-
-
-        let panel =
-            document.getElementById(
-                "autoEnginePanel"
-            );
-
-
-        if(!panel){
-
-            const parent =
-                settingsView.querySelector(
-                    ".panel"
-                );
-
-
-            if(!parent)
-                return;
-
-
-            panel =
-                document.createElement(
-                    "div"
-                );
-
-
-            panel.id =
-                "autoEnginePanel";
-
-
-            panel.className =
-                "panel";
-
-
-            parent.appendChild(
-                panel
-            );
-
-        }
-
-
-        panel.innerHTML = `
-
-            <h2>
-                🤖 Otomatik İşlem Motoru
-            </h2>
-
-            <div class="muted">
-                V10.2 Auto Engine Core • PAPER
-            </div>
-
-
-            <div class="grid">
-
-                <div class="box">
-
-                    <span>
-                        Durum
-                    </span>
-
-                    <b
-                        class="v102-status">
-                        —
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Mod
-                    </span>
-
-                    <b>
-                        ${cfg.mode}
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Minimum skor
-                    </span>
-
-                    <b>
-                        ${cfg.minScore}
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Risk / işlem
-                    </span>
-
-                    <b>
-                        ${cfg.riskPercent}%
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Max günlük zarar
-                    </span>
-
-                    <b>
-                        ${cfg.maxDailyLossPercent}%
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Cooldown
-                    </span>
-
-                    <b>
-                        ${cfg.sameSymbolCooldownMinutes} dk
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Otomatik açılan
-                    </span>
-
-                    <b
-                        class="v102-opened">
-                        0
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Engellenen
-                    </span>
-
-                    <b
-                        class="v102-blocked">
-                        0
-                    </b>
-
-                </div>
-
-
-                <div class="box">
-
-                    <span>
-                        Bugünkü PNL
-                    </span>
-
-                    <b
-                        class="v102-pnl">
-                        0.00 USDT
-                    </b>
-
-                </div>
-
-            </div>
-
-
-            <button
-                class="primary"
-                id="v102StartBtn">
-
-                ${
-                    cfg.enabled
-                    ? "⏸ Otomatik İşlemi Durdur"
-                    : "▶ Otomatik İşlemi Başlat"
-                }
-
-            </button>
-
-
-            <button
-                class="secondary"
-                id="v102KillBtn">
-
-                🛑 KILL SWITCH
-
-            </button>
-
-
-            <div
-                class="calc">
-
-                <b>
-                    Motor:
-                </b>
-
-                <span
-                    class="v102-action">
-                    ${state.lastAction}
-                </span>
-
-                <br>
-
-                <span
-                    class="red v102-error">
-                    ${
-                        state.lastError
-                        ? "Hata: " +
-                          state.lastError
-                        : ""
-                    }
-                </span>
-
-            </div>
-
-
-            <div class="note">
-
-                V10.2 yalnızca PAPER işlem açar.
-                Gerçek Binance emri göndermez.
-                Yeni işlem yalnızca risk,
-                günlük zarar, cooldown,
-                yön ve skor kontrollerinden
-                geçerse açılır.
-
-            </div>
-
-        `;
-
-
-  const startBtn =
-    document.getElementById(
-        "v102StartBtn"
-    );
-
-if(startBtn){
-
-    startBtn.onclick =
-        function(){
-
-            if(cfg.enabled){
-
-                stop();
-
-            }else{
-
-                start();
-
-            }
-
-        };
-
-}
-
-
-        const kill =
-            document.getElementById(
-                "v102KillBtn"
-            );
-
-
-        if(kill){
-
-            kill.onclick =
-                function(){
-
-                    killSwitch();
-
-                };
-
-        }
-
-
-        renderStatus();
-
-    }
-
-
-    /* =====================================================
-       START
-    ===================================================== */
-
-    function start(){
-
-        cfg.enabled =
-            true;
-
-        cfg.killSwitch =
-            false;
-
-
-        state.running =
-            true;
-
-        state.lastError =
-            null;
-
-        state.blockedReason =
-            null;
-
-        state.lastAction =
-            "V10.2 Auto Engine aktif.";
-
-
-        save();
-
-
-        renderPanel();
-
-
-        /*
-         * Başlangıçta hemen bir tarama.
-         */
-
-        tick();
-
-    }
-
-
-    /* =====================================================
-       STOP
-    ===================================================== */
-
-    function stop(){
-
-        cfg.enabled =
-            false;
-
-
-        state.running =
-            false;
-
-
-        state.lastAction =
-            "V10.2 Auto Engine durduruldu.";
-
-
-        save();
-
-
-        renderPanel();
-
-    }
-
-
-    /* =====================================================
-       KILL SWITCH
-    ===================================================== */
-
-    function killSwitch(){
-
-        cfg.enabled =
-            false;
-
-
-        cfg.killSwitch =
-            true;
-
-
-        state.running =
-            false;
-
-
-        state.lastAction =
-            "🛑 KILL SWITCH AKTİF.";
-
-
-        save();
-
-
-        renderPanel();
-
-
-        try{
-
-            alert(
-                "🛑 V10.2 KILL SWITCH AKTİF\n\n"+
-                "Yeni otomatik PAPER işlemleri durduruldu."
-            );
-
-        }catch(_){}
-
-    }
-
-
-    /* =====================================================
-       AYAR KAYDET
-    ===================================================== */
-
-    function save(){
-
-        try{
-
-            localStorage.setItem(
-
-                V102_KEY,
-
-                JSON.stringify(cfg)
-
-            );
-
-        }catch(error){
-
-            console.warn(
-                "V10.2 ayarları kaydedilemedi:",
-                error
-            );
-
-        }
-
-    }
-
-
-    /* =====================================================
-       PUBLIC API
-    ===================================================== */
-
-    window.FSSAutoV102 = {
-
-        start,
-
-        stop,
-
-        killSwitch,
-
-        tick,
-
-        render:
-            renderPanel,
-
-        config(){
-
-            return {
-                ...cfg
-            };
-
-        },
-
-        state(){
-
-            return {
-                ...state
-            };
-
-        },
-
-        setConfig(values){
-
-            if(!values)
-                return;
-
-
-            cfg = {
-
-                ...cfg,
-
-                ...values
-
-            };
-
-
-            /*
-             * Güvenlik sınırları
-             */
-
-            cfg.riskPercent =
-                Math.max(
-                    number(
-                        cfg.riskPercent,
-                        1
-                    ),
-                    0.1
-                );
-
-
-            cfg.maxRiskPercent =
-                Math.max(
-                    number(
-                        cfg.maxRiskPercent,
-                        3
-                    ),
-                    0.1
-                );
-
-
-            if(
-                cfg.riskPercent >
-                cfg.maxRiskPercent
-            ){
-
-                cfg.riskPercent =
-                    cfg.maxRiskPercent;
-
-            }
-
-
-            cfg.minScore =
-                Math.min(
-                    Math.max(
-                        number(
-                            cfg.minScore,
-                            70
-                        ),
-                        50
-                    ),
-                    100
-                );
-
-
-            cfg.maxDailyLossPercent =
-                Math.max(
-                    number(
-                        cfg.maxDailyLossPercent,
-                        3
-                    ),
-                    0
-                );
-
-
-            cfg.sameSymbolCooldownMinutes =
-                Math.max(
-                    number(
-                        cfg.sameSymbolCooldownMinutes,
-                        30
-                    ),
-                    0
-                );
-
-
-            save();
-
-            renderPanel();
-
-        }
-
-    };
-
-
-    /* =====================================================
-       5 SANİYELİK MOTOR TICK
-    ===================================================== */
-
-    setInterval(
-
-        function(){
-
-            try{
-
-                tick();
-
-            }catch(error){
-
-                state.lastError =
-                    error?.message ??
-                    String(error);
-
-                renderStatus();
-
-            }
-
-        },
-
-        5000
-
-    );
-
-
-    /* =====================================================
-       BAŞLAT
-    ===================================================== */
-
-    function initV102(){
-
-        renderPanel();
-
-
-        console.log(
-            "V10.2 Auto Engine Core hazır."
+            0
         );
 
-    }
 
+    if($('closedCount'))
+        $('closedCount').textContent=
+            closed;
 
-    if(
-        document.readyState ===
-        "loading"
-    ){
 
-        document.addEventListener(
+    if($('totalPnl'))
+        $('totalPnl').textContent=
+            pnl.toFixed(2)+' USDT';
 
-            "DOMContentLoaded",
-
-            initV102
-
-        );
-
-    }else{
-
-        initV102();
-
-    }
-
-
-})();
-
-/* =========================================================
-   V10.3 AUTO ENGINE CONSOLIDATION
-   ---------------------------------------------------------
-   Tek Auto Engine kontrol noktası
-========================================================= */
-
-(function(){
-
-    "use strict";
-
-    window.FSSAutoV103 = {
-
-        version: "10.3",
-
-        engine: "V10.2",
-
-        status: function(){
-
-            try{
-
-                if(
-                    window.FSSAutoV102 &&
-                    typeof window.FSSAutoV102.state === "function"
-                ){
-
-                    return {
-                        version: "10.3",
-                        engine: "V10.2",
-                        active: true,
-                        state:
-                            window.FSSAutoV102.state()
-                    };
-
-                }
-
-            }catch(error){
-
-                console.warn(
-                    "V10.3 engine status error:",
-                    error
-                );
-
-            }
-
-            return {
-                version: "10.3",
-                engine: "V10.2",
-                active: false
-            };
-
-        },
-
-        start: function(){
-
-            if(
-                window.FSSAutoV102 &&
-                typeof window.FSSAutoV102.start === "function"
-            ){
-
-                window.FSSAutoV102.start();
-
-                return true;
-            }
-
-            return false;
-        },
-
-        stop: function(){
-
-            if(
-                window.FSSAutoV102 &&
-                typeof window.FSSAutoV102.stop === "function"
-            ){
-
-                window.FSSAutoV102.stop();
-
-                return true;
-            }
-
-            return false;
-        },
-
-        killSwitch: function(){
-
-            if(
-                window.FSSAutoV102 &&
-                typeof window.FSSAutoV102.killSwitch === "function"
-            ){
-
-                window.FSSAutoV102.killSwitch();
-
-                return true;
-            }
-
-            return false;
-        }
-
-    };
-
-    console.log(
-        "V10.3 Auto Engine Consolidation aktif. Tek motor: V10.2"
-    );
-
-})();
-
-/* =========================================================
-   V10.4 POSITION MANAGER
-   ---------------------------------------------------------
-   TP1 partial close
-   TP1 sonrası Break-Even
-   TP2
-   TP3
-   Trailing Stop
-   Commission
-   Net PNL
-========================================================= */
-
-(function(){
-
-    "use strict";
-
-    const V104 = {
-
-        VERSION: "10.4",
-
-        /* -------------------------------------------------
-           AYARLAR
-        ------------------------------------------------- */
-
-        config: {
-
-            /* TP1 gerçekleşince pozisyonun %30'u kapanır */
-            tp1ClosePercent: 30,
-
-            /* TP1 sonrası SL giriş fiyatına taşınır */
-            breakEvenAfterTP1: true,
-
-            /* Trailing Stop */
-            trailingEnabled: true,
-
-            /* Fiyat TP1'e ulaştıktan sonra trailing başlar */
-            trailingActivationTP: 1,
-
-            /* Trailing mesafesi */
-            trailingPercent: 0.40,
-
-            /* Binance benzeri varsayılan paper komisyon */
-            commissionRate: 0.0004
-
-        },
-
-
-        /* -------------------------------------------------
-           SAYI GÜVENLİĞİ
-        ------------------------------------------------- */
-
-        number(value, fallback = 0){
-
-            const n = Number(value);
-
-            return Number.isFinite(n)
-                ? n
-                : fallback;
-
-        },
-
-
-        clamp(value, min, max){
-
-            return Math.max(
-                min,
-                Math.min(max, value)
-            );
-
-        },
-
-
-        /* -------------------------------------------------
-           POZİSYON YÖNÜ
-        ------------------------------------------------- */
-
-        isLong(position){
-
-            return String(
-                position?.side || ""
-            ).toUpperCase() === "LONG";
-
-        },
-
-
-        isShort(position){
-
-            return String(
-                position?.side || ""
-            ).toUpperCase() === "SHORT";
-
-        },
-
-
-        /* -------------------------------------------------
-           FİYAT HEDEFLERİ
-        ------------------------------------------------- */
-
-        reachedTP1(position, price){
-
-            const p = this.number(price);
-
-            const tp1 = this.number(
-                position.tp1
-            );
-
-            if(this.isLong(position)){
-
-                return p >= tp1;
-
-            }
-
-            if(this.isShort(position)){
-
-                return p <= tp1;
-
-            }
-
-            return false;
-
-        },
-
-
-        reachedTP2(position, price){
-
-            const p = this.number(price);
-
-            const tp2 = this.number(
-                position.tp2
-            );
-
-            if(this.isLong(position)){
-
-                return p >= tp2;
-
-            }
-
-            if(this.isShort(position)){
-
-                return p <= tp2;
-
-            }
-
-            return false;
-
-        },
-
-
-        reachedTP3(position, price){
-
-            const p = this.number(price);
-
-            const tp3 = this.number(
-                position.tp3
-            );
-
-            if(this.isLong(position)){
-
-                return p >= tp3;
-
-            }
-
-            if(this.isShort(position)){
-
-                return p <= tp3;
-
-            }
-
-            return false;
-
-        },
-
-
-        /* -------------------------------------------------
-           STOP LOSS
-        ------------------------------------------------- */
-
-        reachedSL(position, price){
-
-            const p = this.number(price);
-
-            const sl = this.number(
-                position.sl
-            );
-
-            if(!sl){
-
-                return false;
-
-            }
-
-            if(this.isLong(position)){
-
-                return p <= sl;
-
-            }
-
-            if(this.isShort(position)){
-
-                return p >= sl;
-
-            }
-
-            return false;
-
-        },
-
-
-        /* -------------------------------------------------
-           TRAILING STOP
-        ------------------------------------------------- */
-
-        updateTrailingStop(position, price){
-
-            if(!this.config.trailingEnabled){
-
-                return false;
-
-            }
-
-            if(
-                this.config.trailingActivationTP >= 1 &&
-                !position.tp1Hit
-            ){
-
-                return false;
-
-            }
-
-            const p = this.number(price);
-
-            if(!p){
-
-                return false;
-
-            }
-
-            const distance =
-                p *
-                (
-                    this.config.trailingPercent /
-                    100
-                );
-
-            let newSL;
-
-            if(this.isLong(position)){
-
-                newSL = p - distance;
-
-                if(
-                    !position.sl ||
-                    newSL > this.number(position.sl)
-                ){
-
-                    position.sl = newSL;
-
-                    position.trailingActive = true;
-
-                    return true;
-
-                }
-
-            }
-
-
-            if(this.isShort(position)){
-
-                newSL = p + distance;
-
-                if(
-                    !position.sl ||
-                    newSL < this.number(position.sl)
-                ){
-
-                    position.sl = newSL;
-
-                    position.trailingActive = true;
-
-                    return true;
-
-                }
-
-            }
-
-            return false;
-
-        },
-
-
-        /* -------------------------------------------------
-           BREAK EVEN
-        ------------------------------------------------- */
-
-        moveToBreakEven(position){
-
-            if(
-                !this.config.breakEvenAfterTP1
-            ){
-
-                return false;
-
-            }
-
-            const entry =
-                this.number(
-                    position.entry
-                );
-
-            if(!entry){
-
-                return false;
-
-            }
-
-            if(
-                this.isLong(position) &&
-                (
-                    !position.sl ||
-                    this.number(position.sl) < entry
-                )
-            ){
-
-                position.sl = entry;
-
-                position.breakEven = true;
-
-                return true;
-
-            }
-
-
-            if(
-                this.isShort(position) &&
-                (
-                    !position.sl ||
-                    this.number(position.sl) > entry
-                )
-            ){
-
-                position.sl = entry;
-
-                position.breakEven = true;
-
-                return true;
-
-            }
-
-            return false;
-
-        },
-
-
-        /* -------------------------------------------------
-           KOMİSYON
-        ------------------------------------------------- */
-
-        commission(notional){
-
-            return Math.abs(
-                this.number(notional)
-            ) *
-            this.config.commissionRate;
-
-        },
-
-
-        /* -------------------------------------------------
-           PNL
-        ------------------------------------------------- */
-
-        grossPNL(
-            side,
-            entry,
-            exit,
-            quantity
-        ){
-
-            entry =
-                this.number(entry);
-
-            exit =
-                this.number(exit);
-
-            quantity =
-                this.number(quantity);
-
-            if(
-                !entry ||
-                !exit ||
-                !quantity
-            ){
-
-                return 0;
-
-            }
-
-            if(
-                String(side).toUpperCase()
-                === "LONG"
-            ){
-
-                return (
-                    exit -
-                    entry
-                ) * quantity;
-
-            }
-
-            return (
-                entry -
-                exit
-            ) * quantity;
-
-        },
-
-
-        /* -------------------------------------------------
-           NET PNL
-        ------------------------------------------------- */
-
-        netPNL(
-            side,
-            entry,
-            exit,
-            quantity
-        ){
-
-            const gross =
-                this.grossPNL(
-                    side,
-                    entry,
-                    exit,
-                    quantity
-                );
-
-            const entryCommission =
-                this.commission(
-                    this.number(entry) *
-                    this.number(quantity)
-                );
-
-            const exitCommission =
-                this.commission(
-                    this.number(exit) *
-                    this.number(quantity)
-                );
-
-            return {
-
-                gross,
-
-                entryCommission,
-
-                exitCommission,
-
-                commission:
-                    entryCommission +
-                    exitCommission,
-
-                net:
-                    gross -
-                    entryCommission -
-                    exitCommission
-
-            };
-
-        },
-
-
-        /* -------------------------------------------------
-           POZİSYON OLAYI
-        ------------------------------------------------- */
-
-        event(
-            position,
-            type,
-            price,
-            pnl = 0
-        ){
-
-            if(!Array.isArray(position.events)){
-
-                position.events = [];
-
-            }
-
-            position.events.push({
-
-                type,
-
-                price:
-                    this.number(price),
-
-                pnl:
-                    this.number(pnl),
-
-                timestamp:
-                    Date.now()
-
-            });
-
-        },
-
-
-        /* -------------------------------------------------
-           TP1
-        ------------------------------------------------- */
-
-        processTP1(
-            position,
-            price
-        ){
-
-            if(position.tp1Hit){
-
-                return false;
-
-            }
-
-            if(
-                !this.reachedTP1(
-                    position,
-                    price
-                )
-            ){
-
-                return false;
-
-            }
-
-            const originalQty =
-                this.number(
-                    position.initialQuantity ||
-                    position.quantity
-                );
-
-            if(!originalQty){
-
-                return false;
-
-            }
-
-            const closePercent =
-                this.clamp(
-                    this.config.tp1ClosePercent,
-                    0,
-                    100
-                );
-
-            const closeQty =
-                originalQty *
-                (
-                    closePercent /
-                    100
-                );
-
-            const pnl =
-                this.grossPNL(
-                    position.side,
-                    position.entry,
-                    price,
-                    closeQty
-                );
-
-            const costs =
-                this.commission(
-                    this.number(
-                        position.entry
-                    ) *
-                    closeQty
-                )
-                +
-                this.commission(
-                    this.number(price) *
-                    closeQty
-                );
-
-            const net =
-                pnl - costs;
-
-
-            position.quantity =
-                Math.max(
-                    0,
-                    originalQty -
-                    closeQty
-                );
-
-            position.tp1Hit = true;
-
-            position.tp1CloseQty =
-                closeQty;
-
-            position.tp1GrossPNL =
-                pnl;
-
-            position.tp1Commission =
-                costs;
-
-            position.tp1NetPNL =
-                net;
-
-            position.realizedPNL =
-                this.number(
-                    position.realizedPNL
-                ) + net;
-
-
-            this.event(
-                position,
-                "TP1",
-                price,
-                net
-            );
-
-
-            /* TP1 sonrası Break-Even */
-
-            this.moveToBreakEven(
-                position
-            );
-
-
-            return true;
-
-        },
-
-
-        /* -------------------------------------------------
-           TP2
-        ------------------------------------------------- */
-
-        processTP2(
-            position,
-            price
-        ){
-
-            if(position.tp2Hit){
-
-                return false;
-
-            }
-
-            if(
-                !this.reachedTP2(
-                    position,
-                    price
-                )
-            ){
-
-                return false;
-
-            }
-
-            position.tp2Hit = true;
-
-            position.tp2Price =
-                this.number(price);
-
-
-            this.event(
-                position,
-                "TP2",
-                price,
-                0
-            );
-
-
-            return true;
-
-        },
-
-
-        /* -------------------------------------------------
-           TP3 / TAM KAPATMA
-        ------------------------------------------------- */
-
-        processTP3(
-            position,
-            price
-        ){
-
-            if(position.tp3Hit){
-
-                return false;
-
-            }
-
-            if(
-                !this.reachedTP3(
-                    position,
-                    price
-                )
-            ){
-
-                return false;
-
-            }
-
-            position.tp3Hit = true;
-
-            position.tp3Price =
-                this.number(price);
-
-
-            this.event(
-                position,
-                "TP3",
-                price,
-                0
-            );
-
-
-            return true;
-
-        },
-
-
-        /* -------------------------------------------------
-           STOP
-        ------------------------------------------------- */
-
-        processStop(
-            position,
-            price
-        ){
-
-            if(
-                !this.reachedSL(
-                    position,
-                    price
-                )
-            ){
-
-                return false;
-
-            }
-
-            const quantity =
-                this.number(
-                    position.quantity
-                );
-
-            if(!quantity){
-
-                return true;
-
-            }
-
-            const result =
-                this.netPNL(
-                    position.side,
-                    position.entry,
-                    price,
-                    quantity
-                );
-
-
-            position.stopHit = true;
-
-            position.exitPrice =
-                this.number(price);
-
-            position.exitReason =
-                position.breakEven
-                    ? "BREAK_EVEN"
-                    : (
-                        position.trailingActive
-                            ? "TRAILING_STOP"
-                            : "STOP_LOSS"
-                    );
-
-
-            position.grossPNL =
-                this.number(
-                    position.grossPNL
-                ) +
-                result.gross;
-
-            position.commission =
-                this.number(
-                    position.commission
-                ) +
-                result.commission;
-
-            position.realizedPNL =
-                this.number(
-                    position.realizedPNL
-                ) +
-                result.net;
-
-            position.netPNL =
-                this.number(
-                    position.realizedPNL
-                );
-
-
-            this.event(
-                position,
-                position.exitReason,
-                price,
-                result.net
-            );
-
-
-            position.quantity = 0;
-
-            position.closed = true;
-
-            position.status = "CLOSED";
-
-            position.closedAt =
-                Date.now();
-
-
-            return true;
-
-        },
-
-
-        /* -------------------------------------------------
-           TP3 SONRASI KAPAT
-        ------------------------------------------------- */
-
-        closeAtTP3(
-            position,
-            price
-        ){
-
-            const quantity =
-                this.number(
-                    position.quantity
-                );
-
-            if(!quantity){
-
-                position.closed = true;
-
-                position.status = "CLOSED";
-
-                return;
-
-            }
-
-            const result =
-                this.netPNL(
-                    position.side,
-                    position.entry,
-                    price,
-                    quantity
-                );
-
-
-            position.exitPrice =
-                this.number(price);
-
-            position.exitReason =
-                "TP3";
-
-            position.grossPNL =
-                this.number(
-                    position.grossPNL
-                ) +
-                result.gross;
-
-            position.commission =
-                this.number(
-                    position.commission
-                ) +
-                result.commission;
-
-            position.realizedPNL =
-                this.number(
-                    position.realizedPNL
-                ) +
-                result.net;
-
-            position.netPNL =
-                this.number(
-                    position.realizedPNL
-                );
-
-
-            this.event(
-                position,
-                "CLOSE_TP3",
-                price,
-                result.net
-            );
-
-
-            position.quantity = 0;
-
-            position.closed = true;
-
-            position.status = "CLOSED";
-
-            position.closedAt =
-                Date.now();
-
-        },
-
-
-        /* -------------------------------------------------
-           ANA YÖNETİCİ
-        ------------------------------------------------- */
-
-        manage(
-            position,
-            price
-        ){
-
-            if(!position){
-
-                return {
-                    changed: false,
-                    closed: false
-                };
-
-            }
-
-            if(position.closed){
-
-                return {
-                    changed: false,
-                    closed: true
-                };
-
-            }
-
-
-            const p =
-                this.number(price);
-
-            if(!p){
-
-                return {
-                    changed: false,
-                    closed: false
-                };
-
-            }
-
-
-            let changed = false;
-
-
-            /* -----------------------------------------
-               STOP ÖNCE
-            ----------------------------------------- */
-
-            if(
-                this.reachedSL(
-                    position,
-                    p
-                )
-            ){
-
-                const closed =
-                    this.processStop(
-                        position,
-                        p
-                    );
-
-                return {
-
-                    changed:
-                        closed || changed,
-
-                    closed:
-                        !!position.closed
-
-                };
-
-            }
-
-
-            /* -----------------------------------------
-               TP1
-            ----------------------------------------- */
-
-            if(
-                this.processTP1(
-                    position,
-                    p
-                )
-            ){
-
-                changed = true;
-
-            }
-
-
-            /* -----------------------------------------
-               TP2
-            ----------------------------------------- */
-
-            if(
-                this.processTP2(
-                    position,
-                    p
-                )
-            ){
-
-                changed = true;
-
-            }
-
-
-            /* -----------------------------------------
-               TP3
-            ----------------------------------------- */
-
-            if(
-                this.processTP3(
-                    position,
-                    p
-                )
-            ){
-
-                changed = true;
-
-                this.closeAtTP3(
-                    position,
-                    p
-                );
-
-                return {
-
-                    changed: true,
-
-                    closed: true
-
-                };
-
-            }
-
-
-            /* -----------------------------------------
-               TRAILING
-            ----------------------------------------- */
-
-            if(
-                this.updateTrailingStop(
-                    position,
-                    p
-                )
-            ){
-
-                changed = true;
-
-            }
-
-
-            /* -----------------------------------------
-               TRAILING SONRASI STOP
-            ----------------------------------------- */
-
-            if(
-                !position.closed &&
-                this.reachedSL(
-                    position,
-                    p
-                )
-            ){
-
-                this.processStop(
-                    position,
-                    p
-                );
-
-                changed = true;
-
-            }
-
-
-            return {
-
-                changed,
-
-                closed:
-                    !!position.closed
-
-            };
-
-        }
-
-    };
-
-
-    /* =====================================================
-       GLOBAL API
-    ===================================================== */
-
-    window.FSSPositionManagerV104 =
-        V104;
-
-
-    console.log(
-        "FSS V10.4 Position Manager aktif."
-    );
-
-
-})();
-
-
+}
