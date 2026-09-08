@@ -2700,3 +2700,460 @@ function renderTradeStats(){
 
 }
 
+/* =========================================================
+   BÖLÜM 5/7
+   PAPER POZİSYON OTOMATİK YÖNETİMİ
+   ---------------------------------------------------------
+   Görevleri:
+
+   • Açık pozisyonu bulur
+   • Anlık fiyatı alır
+   • PNL hesaplar
+   • TP1 kontrol eder
+   • TP2 kontrol eder
+   • TP3 kontrol eder
+   • SL kontrol eder
+   • Pozisyon kapanınca geçmişe aktarır
+
+   PAPER ONLY
+========================================================= */
+
+function manageOpenPaperPosition(){
+
+    const position =
+        getOpenPosition();
+
+
+    /* -----------------------------------------------------
+       AÇIK POZİSYON YOK
+    ----------------------------------------------------- */
+
+    if(!position){
+
+        return;
+
+    }
+
+
+    /* -----------------------------------------------------
+       ANLIK FİYAT
+    ----------------------------------------------------- */
+
+    const ticker =
+        tickers.get(
+            position.symbol
+        );
+
+
+    const currentPrice =
+        n(ticker?.c) ||
+        n(position.currentPrice);
+
+
+    if(
+        !currentPrice ||
+        currentPrice<=0
+    ){
+
+        return;
+
+    }
+
+
+    /* -----------------------------------------------------
+       POZİSYON FİYATINI GÜNCELLE
+    ----------------------------------------------------- */
+
+    position.currentPrice =
+        currentPrice;
+
+
+    /* -----------------------------------------------------
+       PNL
+    ----------------------------------------------------- */
+
+    const pnl =
+        calculatePnl(
+            position,
+            currentPrice
+        );
+
+
+    position.unrealizedPNL =
+        pnl;
+
+
+    position.lastPNL =
+        pnl;
+
+
+    /* -----------------------------------------------------
+       TP / SL DEĞERLERİ
+    ----------------------------------------------------- */
+
+    const tp1 =
+        n(position.tp1);
+
+
+    const tp2 =
+        n(position.tp2);
+
+
+    const tp3 =
+        n(position.tp3);
+
+
+    const sl =
+        n(position.sl);
+
+
+    /* -----------------------------------------------------
+       LONG
+    ----------------------------------------------------- */
+
+    if(
+        position.side === 'LONG'
+    ){
+
+        /* TP1 */
+
+        if(
+            tp1>0 &&
+            currentPrice>=tp1 &&
+            !position.tp1Hit
+        ){
+
+            position.tp1Hit =
+                true;
+
+
+            position.breakEvenActive =
+                true;
+
+
+            position.sl =
+                position.entry;
+
+
+            console.log(
+                'V10.5 TP1:',
+                position.symbol,
+                currentPrice
+            );
+
+        }
+
+
+        /* TP2 */
+
+        if(
+            tp2>0 &&
+            currentPrice>=tp2 &&
+            !position.tp2Hit
+        ){
+
+            position.tp2Hit =
+                true;
+
+
+            position.trailingActive =
+                true;
+
+
+            console.log(
+                'V10.5 TP2:',
+                position.symbol,
+                currentPrice
+            );
+
+        }
+
+
+        /* TP3 */
+
+        if(
+            tp3>0 &&
+            currentPrice>=tp3 &&
+            !position.tp3Hit
+        ){
+
+            position.tp3Hit =
+                true;
+
+
+            closePaperPosition(
+                'TP3'
+            );
+
+
+            return;
+
+        }
+
+
+        /* SL */
+
+        const activeSL =
+            n(position.sl) ||
+            sl;
+
+
+        if(
+            activeSL>0 &&
+            currentPrice<=activeSL
+        ){
+
+            closePaperPosition(
+                position.trailingActive
+                    ?'TRAILING'
+                    :position.breakEvenActive
+                    ?'BREAK-EVEN'
+                    :'SL'
+            );
+
+
+            return;
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       SHORT
+    ----------------------------------------------------- */
+
+    if(
+        position.side === 'SHORT'
+    ){
+
+        /* TP1 */
+
+        if(
+            tp1>0 &&
+            currentPrice<=tp1 &&
+            !position.tp1Hit
+        ){
+
+            position.tp1Hit =
+                true;
+
+
+            position.breakEvenActive =
+                true;
+
+
+            position.sl =
+                position.entry;
+
+
+            console.log(
+                'V10.5 TP1:',
+                position.symbol,
+                currentPrice
+            );
+
+        }
+
+
+        /* TP2 */
+
+        if(
+            tp2>0 &&
+            currentPrice<=tp2 &&
+            !position.tp2Hit
+        ){
+
+            position.tp2Hit =
+                true;
+
+
+            position.trailingActive =
+                true;
+
+
+            console.log(
+                'V10.5 TP2:',
+                position.symbol,
+                currentPrice
+            );
+
+        }
+
+
+        /* TP3 */
+
+        if(
+            tp3>0 &&
+            currentPrice<=tp3 &&
+            !position.tp3Hit
+        ){
+
+            position.tp3Hit =
+                true;
+
+
+            closePaperPosition(
+                'TP3'
+            );
+
+
+            return;
+
+        }
+
+
+        /* SL */
+
+        const activeSL =
+            n(position.sl) ||
+            sl;
+
+
+        if(
+            activeSL>0 &&
+            currentPrice>=activeSL
+        ){
+
+            closePaperPosition(
+                position.trailingActive
+                    ?'TRAILING'
+                    :position.breakEvenActive
+                    ?'BREAK-EVEN'
+                    :'SL'
+            );
+
+
+            return;
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       TRAILING STOP
+    ----------------------------------------------------- */
+
+    if(
+        position.trailingActive
+    ){
+
+        const trailingDistance =
+            Math.abs(
+                n(position.entry)-
+                n(position.sl)
+            );
+
+
+        if(
+            trailingDistance>0
+        ){
+
+            if(
+                position.side === 'LONG'
+            ){
+
+                const newSL =
+                    currentPrice-
+                    trailingDistance;
+
+
+                if(
+                    newSL>
+                    n(position.sl)
+                ){
+
+                    position.sl =
+                        newSL;
+
+                }
+
+            }
+
+
+            if(
+                position.side === 'SHORT'
+            ){
+
+                const newSL =
+                    currentPrice+
+                    trailingDistance;
+
+
+                if(
+                    newSL<
+                    n(position.sl) ||
+                    !n(position.sl)
+                ){
+
+                    position.sl =
+                        newSL;
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       ZAMAN
+    ----------------------------------------------------- */
+
+    position.updatedAt =
+        Date.now();
+
+
+    /* -----------------------------------------------------
+       KAYDET
+    ----------------------------------------------------- */
+
+    saveOpenPosition(
+        position
+    );
+
+
+    /* -----------------------------------------------------
+       EKRANI GÜNCELLE
+    ----------------------------------------------------- */
+
+    renderOpenPosition();
+
+
+    renderTradeStats();
+
+
+    console.log(
+        'V10.5 POSITION MANAGER:',
+        {
+            symbol:
+                position.symbol,
+
+            side:
+                position.side,
+
+            price:
+                currentPrice,
+
+            pnl:
+                pnl,
+
+            tp1Hit:
+                !!position.tp1Hit,
+
+            tp2Hit:
+                !!position.tp2Hit,
+
+            tp3Hit:
+                !!position.tp3Hit,
+
+            sl:
+                position.sl
+
+        }
+    );
+
+}
