@@ -2699,3 +2699,4 @@ function renderTradeStats(){
             pnl.toFixed(2)+' USDT';
 
 }
+
