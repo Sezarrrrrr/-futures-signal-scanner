@@ -2158,6 +2158,17 @@ Pozisyon notional:
    Sermaye → Notional → Quantity zincirini garanti eder.
 ========================================================= */
 
+
+/* =========================================================
+   V10.5 RİSK TABANLI PAPER İŞLEM AÇ
+   ---------------------------------------------------------
+   Sermaye → Risk % → SL mesafesi → Quantity → Notional
+   zincirini kullanır.
+
+   PAPER ONLY
+   Gerçek emir göndermez.
+========================================================= */
+
 function savePaperTrade(){
 
     const symbol =
@@ -2198,20 +2209,750 @@ function savePaperTrade(){
         n($('tradeLev')?.value);
 
 
-    /*
-     * Sermaye alanını doğrudan input'tan al.
-     * Boş / geçersiz değerleri 0 kabul et.
-     */
+    /* ---------------------------------------------------------
+       SERMAYE
+    --------------------------------------------------------- */
+
     const capitalInput =
         $('tradeCapital')?.value;
 
 
     const capital =
         Number(
-            String(capitalInput ?? '')
-                .replace(',', '.')
+            String(
+                capitalInput ?? ''
+            )
+            .replace(',', '.')
         );
 
+
+    /* ---------------------------------------------------------
+       TEMEL KONTROLLER
+    --------------------------------------------------------- */
+
+    if(!symbol){
+
+        alert(
+            'Lütfen coin seç.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(entry) ||
+        entry <= 0
+    ){
+
+        alert(
+            'Geçerli bir giriş fiyatı gir.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(sl) ||
+        sl <= 0
+    ){
+
+        alert(
+            'Geçerli bir Stop Loss gir.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(tp1) ||
+        tp1 <= 0
+    ){
+
+        alert(
+            'Geçerli bir TP1 gir.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        side !== 'LONG' &&
+        side !== 'SHORT'
+    ){
+
+        alert(
+            'İşlem yönü LONG veya SHORT olmalı.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(lev) ||
+        lev <= 0
+    ){
+
+        alert(
+            'Geçerli bir kaldıraç seç.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(capital) ||
+        capital <= 0
+    ){
+
+        alert(
+            'Sermaye değeri geçersiz.'
+        );
+
+        return;
+
+    }
+
+
+    /* ---------------------------------------------------------
+       TEK AÇIK POZİSYON
+    --------------------------------------------------------- */
+
+    if(
+        getOpenPosition()
+    ){
+
+        alert(
+            'Zaten açık bir PAPER pozisyon var.\n\n' +
+            'Önce mevcut pozisyonu kapat.'
+        );
+
+        return;
+
+    }
+
+
+    /* ---------------------------------------------------------
+       GÜNCEL FİYAT
+    --------------------------------------------------------- */
+
+    const ticker =
+        tickers.get(symbol);
+
+
+    const currentPrice =
+        n(ticker?.c) ||
+        entry;
+
+
+    /* =========================================================
+       V10.5 RİSK MOTORU
+    ========================================================= */
+
+    let riskPercent = 1;
+
+
+    /*
+     * Otomatik motor çalışıyorsa
+     * V10.2 ayarındaki risk yüzdesini kullan.
+     */
+
+    try{
+
+        if(
+            typeof FSSAutoV102 !==
+            'undefined' &&
+            FSSAutoV102?.getConfig
+        ){
+
+            const autoCfg =
+                FSSAutoV102.getConfig();
+
+
+            if(
+                Number.isFinite(
+                    Number(
+                        autoCfg?.riskPercent
+                    )
+                )
+            ){
+
+                riskPercent =
+                    Number(
+                        autoCfg.riskPercent
+                    );
+
+            }
+
+        }
+
+    }catch(error){
+
+        console.warn(
+            'V10.5 risk ayarı okunamadı:',
+            error
+        );
+
+    }
+
+
+    /*
+     * Güvenlik sınırı.
+     */
+
+    riskPercent =
+        Math.min(
+            3,
+            Math.max(
+                0.01,
+                riskPercent
+            )
+        );
+
+
+    /*
+     * İşlem başına izin verilen
+     * maksimum parasal risk.
+     *
+     * Örnek:
+     *
+     * Sermaye = 100
+     * Risk = %1
+     *
+     * Risk bütçesi = 1 USDT
+     */
+
+    const riskBudget =
+        capital *
+        riskPercent /
+        100;
+
+
+    /*
+     * Giriş → SL fiyat mesafesi.
+     */
+
+    const stopDistance =
+        Math.abs(
+            entry - sl
+        );
+
+
+    if(
+        !Number.isFinite(stopDistance) ||
+        stopDistance <= 0
+    ){
+
+        alert(
+            'Risk hesaplanamadı: ' +
+            'Giriş ve Stop Loss aynı olamaz.'
+        );
+
+        return;
+
+    }
+
+
+    /*
+     * Risk tabanlı quantity.
+     *
+     * Risk Budget / SL mesafesi
+     */
+
+    let initialQuantity =
+        riskBudget /
+        stopDistance;
+
+
+    if(
+        !Number.isFinite(initialQuantity) ||
+        initialQuantity <= 0
+    ){
+
+        alert(
+            'Risk tabanlı pozisyon miktarı hesaplanamadı.'
+        );
+
+        return;
+
+    }
+
+
+    /*
+     * Maksimum notional:
+     *
+     * Sermaye × Kaldıraç
+     */
+
+    const maxNotional =
+        capital *
+        lev;
+
+
+    /*
+     * Risk bazlı notional.
+     */
+
+    let notional =
+        initialQuantity *
+        entry;
+
+
+    /*
+     * Güvenlik:
+     * Kaldıraç limitini hiçbir zaman aşma.
+     */
+
+    if(
+        notional >
+        maxNotional
+    ){
+
+        notional =
+            maxNotional;
+
+
+        initialQuantity =
+            notional /
+            entry;
+
+    }
+
+
+    /*
+     * Nihai quantity.
+     */
+
+    const quantity =
+        initialQuantity;
+
+
+    /*
+     * Gerçek planlanan SL riski.
+     *
+     * Notional kısıtlaması nedeniyle
+     * hedef riskten daha düşük olabilir.
+     */
+
+    const plannedRisk =
+        quantity *
+        stopDistance;
+
+
+    /* =========================================================
+       TP2 / TP3
+    ========================================================= */
+
+    const tpDistance =
+        Math.abs(
+            tp1 - entry
+        );
+
+
+    if(
+        !Number.isFinite(tpDistance) ||
+        tpDistance <= 0
+    ){
+
+        alert(
+            'TP1 mesafesi geçersiz.'
+        );
+
+        return;
+
+    }
+
+
+    const tp2 =
+        tp2Input > 0
+            ? tp2Input
+            : (
+                side === 'LONG'
+                    ? entry +
+                      tpDistance * 2
+                    : entry -
+                      tpDistance * 2
+            );
+
+
+    const tp3 =
+        tp3Input > 0
+            ? tp3Input
+            : (
+                side === 'LONG'
+                    ? entry +
+                      tpDistance * 3
+                    : entry -
+                      tpDistance * 3
+            );
+
+
+    /* =========================================================
+       V10.5 PAPER POSITION
+    ========================================================= */
+
+    const position = {
+
+        id:
+            Date.now() +
+            '-' +
+            Math.random()
+                .toString(36)
+                .slice(2,8),
+
+
+        symbol,
+
+
+        side,
+
+
+        score:
+            signal
+                ? n(signal.score)
+                : null,
+
+
+        confirmation:
+            signal
+                ? signal.confirmation
+                : '',
+
+
+        quality:
+            signal
+                ? signal.quality
+                : '',
+
+
+        /* -----------------------------------------------------
+           FİYATLAR
+        ----------------------------------------------------- */
+
+        entry,
+
+
+        currentPrice,
+
+
+        sl,
+
+
+        tp1,
+
+
+        tp2,
+
+
+        tp3,
+
+
+        /* -----------------------------------------------------
+           SERMAYE
+        ----------------------------------------------------- */
+
+        capital,
+
+
+        lev,
+
+
+        /*
+         * Artık sabit:
+         * capital × leverage değil.
+         *
+         * Gerçek risk bazlı notional.
+         */
+
+        notional,
+
+
+        /* -----------------------------------------------------
+           RİSK
+        ----------------------------------------------------- */
+
+        riskPercent,
+
+
+        riskBudget,
+
+
+        stopDistance,
+
+
+        plannedRisk,
+
+
+        /* -----------------------------------------------------
+           MİKTAR
+        ----------------------------------------------------- */
+
+        initialQuantity,
+
+
+        quantity,
+
+
+        /* -----------------------------------------------------
+           TP DURUMLARI
+        ----------------------------------------------------- */
+
+        tp1Hit:false,
+
+
+        tp2Hit:false,
+
+
+        tp3Hit:false,
+
+
+        /* -----------------------------------------------------
+           RİSK YÖNETİMİ
+        ----------------------------------------------------- */
+
+        breakEven:false,
+
+
+        trailingActive:false,
+
+
+        /* -----------------------------------------------------
+           PNL
+        ----------------------------------------------------- */
+
+        realizedPNL:0,
+
+
+        grossPNL:0,
+
+
+        commission:0,
+
+
+        /* -----------------------------------------------------
+           OLAYLAR
+        ----------------------------------------------------- */
+
+        events:[],
+
+
+        /* -----------------------------------------------------
+           DURUM
+        ----------------------------------------------------- */
+
+        openedAt:
+            new Date()
+                .toISOString(),
+
+
+        status:'Açık',
+
+
+        /* -----------------------------------------------------
+           PNL TAKİBİ
+        ----------------------------------------------------- */
+
+        maxPnl:0,
+
+
+        minPnl:0,
+
+
+        lastPnl:0,
+
+
+        updatedAt:
+            Date.now()
+
+    };
+
+
+    /* =========================================================
+       SON GÜVENLİK KONTROLLERİ
+    ========================================================= */
+
+    if(
+        !Number.isFinite(
+            position.notional
+        ) ||
+        position.notional <= 0
+    ){
+
+        alert(
+            'Pozisyon oluşturulamadı: ' +
+            'notional geçersiz.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !Number.isFinite(
+            position.quantity
+        ) ||
+        position.quantity <= 0
+    ){
+
+        alert(
+            'Pozisyon oluşturulamadı: ' +
+            'quantity geçersiz.'
+        );
+
+        return;
+
+    }
+
+
+    if(
+        position.notional >
+        maxNotional
+    ){
+
+        alert(
+            'Güvenlik hatası: ' +
+            'maksimum notional aşıldı.'
+        );
+
+        return;
+
+    }
+
+
+    /* =========================================================
+       KAYDET
+    ========================================================= */
+
+    saveOpenPosition(
+        position
+    );
+
+
+    /* =========================================================
+       EKRANI GÜNCELLE
+    ========================================================= */
+
+    renderOpenPosition();
+
+
+    renderHistory();
+
+
+    renderTradeStats();
+
+
+    showView(
+        'trade'
+    );
+
+
+    /* =========================================================
+       V10.5 KONSOL
+    ========================================================= */
+
+    console.log(
+        'V10.5 RISK POSITION:',
+        {
+
+            symbol:
+                position.symbol,
+
+            side:
+                position.side,
+
+            capital:
+                position.capital,
+
+            riskPercent:
+                position.riskPercent,
+
+            riskBudget:
+                position.riskBudget,
+
+            leverage:
+                position.lev,
+
+            stopDistance:
+                position.stopDistance,
+
+            plannedRisk:
+                position.plannedRisk,
+
+            notional:
+                position.notional,
+
+            initialQuantity:
+                position.initialQuantity,
+
+            quantity:
+                position.quantity,
+
+            entry:
+                position.entry,
+
+            sl:
+                position.sl
+
+        }
+    );
+
+
+    alert(
+
+        'Paper pozisyon açıldı.\n\n' +
+
+        'Coin: ' +
+        position.symbol +
+
+        '\n' +
+
+        'Yön: ' +
+        position.side +
+
+        '\n' +
+
+        'Sermaye: ' +
+        position.capital.toFixed(2) +
+
+        ' USDT\n' +
+
+        'Risk: ' +
+        position.riskPercent.toFixed(2) +
+
+        '%\n' +
+
+        'Risk bütçesi: ' +
+        position.riskBudget.toFixed(4) +
+
+        ' USDT\n' +
+
+        'Notional: ' +
+        position.notional.toFixed(2) +
+
+        ' USDT\n' +
+
+        'Miktar: ' +
+        position.quantity.toFixed(6) +
+
+        '\n\n' +
+
+        'Gerçek emir gönderilmedi.'
+
+    );
+
+}
 
     /* =====================================================
        TEMEL KONTROLLER
