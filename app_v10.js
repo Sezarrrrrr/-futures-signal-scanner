@@ -5830,36 +5830,43 @@ function positionTick(){
     }
 
 
-    /* -----------------------------------------------------
-       POZİSYON KAPANDI
-    ----------------------------------------------------- */
+/* -----------------------------------------------------
+   POZİSYON KAPANDI
+   V10.5 FINALIZATION
+----------------------------------------------------- */
 
-    if(
-        managerResult?.closed ||
-        position.closed
-    ){
+if(
+    managerResult?.closed ||
+    position.closed
+){
 
-        try{
+    const reason =
+        position.exitReason ||
+        position.closeReason ||
+        'OTOMATİK';
 
-            finalizeV104Position(
-                position,
-                currentPrice
-            );
+    try{
 
-        }catch(error){
+        closePaperPosition(
+            reason,
+            currentPrice,
+            true
+        );
 
-            console.error(
-                'V10.4 finalizasyon hatası:',
-                error
-            );
+    }catch(error){
 
-        }
-
-        return;
+        console.error(
+            'V10.5 otomatik kapanış hatası:',
+            error
+        );
 
     }
 
+    return;
 
+}
+
+   
     /* -----------------------------------------------------
        FİYATI GÜNCELLE
     ----------------------------------------------------- */
