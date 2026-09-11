@@ -3157,3 +3157,282 @@ function manageOpenPaperPosition(){
     );
 
 }
+
+/* =====================================================
+   V105 OTOMATİK PAPER İŞLEM DÖNGÜSÜ
+   tick() KULLANMAZ
+   ===================================================== */
+
+(function(){
+
+    let v105AutoTimer = null;
+
+    const V105_INTERVAL = 5000;
+    const V105_COOLDOWN = 15 * 60 * 1000;
+
+    function v105GetSignals(){
+
+        if (Array.isArray(window.signals)) {
+            return window.signals;
+        }
+
+        if (typeof signals !== 'undefined' && Array.isArray(signals)) {
+            return signals;
+        }
+
+        return [];
+    }
+
+    function v105GetOpenPosition(){
+
+        try{
+
+            if (typeof getOpenPosition === 'function') {
+                return getOpenPosition();
+            }
+
+            if (typeof loadOpenPosition === 'function') {
+                return loadOpenPosition();
+            }
+
+            if (typeof state !== 'undefined' && state.openPosition) {
+                return state.openPosition;
+            }
+
+            return null;
+
+        }catch(error){
+
+            console.warn(
+                'Açık pozisyon okunamadı:',
+                error
+            );
+
+            return null;
+        }
+    }
+
+    function v105GetBestSignal(){
+
+        const list = v105GetSignals();
+
+        if (!list.length) {
+            return null;
+        }
+
+        const minScore = Number(
+            localStorage.getItem('minScore') || 65
+        );
+
+        const candidates = list
+            .map(function(signal){
+
+                const side = String(
+                    signal.side ||
+                    signal.direction ||
+                    signal.signal ||
+                    ''
+                ).toUpperCase();
+
+                const rawScore = Number(
+                    signal.score ??
+                    signal.confidence ??
+                    signal.probability ??
+                    0
+                );
+
+                let score = rawScore;
+
+                if (side === 'SHORT' && score <= 50) {
+                    score = 100 - score;
+                }
+
+                return {
+                    original: signal,
+                    side: side,
+                    score: score,
+                    symbol:
+                        signal.symbol ||
+                        signal.s ||
+                        signal.name ||
+                        ''
+                };
+
+            })
+            .filter(function(item){
+
+                return (
+                    item.symbol &&
+                    (
+                        item.side === 'LONG' ||
+                        item.side === 'SHORT'
+                    ) &&
+                    item.score >= minScore
+                );
+
+            })
+            .sort(function(a, b){
+
+                return b.score - a.score;
+
+            });
+
+        return candidates[0] || null;
+    }
+
+    function v105OpenPaperTrade(best){
+
+        if (!best || !best.original) {
+            return false;
+        }
+
+        const signal = best.original;
+
+        try{
+
+            /*
+             * Mevcut işlem planı fonksiyonun varsa onu kullan.
+             */
+            if (typeof prepareTrade === 'function') {
+                prepareTrade(best.symbol);
+            }
+
+            /*
+             * savePaperTrade mevcut form alanlarını okuyorsa,
+             * prepareTrade() sonrasında çağrılır.
+             */
+            if (typeof savePaperTrade === 'function') {
+                savePaperTrade();
+                return true;
+            }
+
+            console.warn(
+                'savePaperTrade() bulunamadı.'
+            );
+
+            return false;
+
+        }catch(error){
+
+            console.error(
+                'Otomatik PAPER işlem açılamadı:',
+                error
+            );
+
+            return false;
+        }
+    }
+
+    function v105AutoCycle(){
+
+        try{
+
+            /*
+             * Açık pozisyon varsa yeni işlem açma.
+             */
+            const openPosition = v105GetOpenPosition();
+
+            if (openPosition) {
+
+                if (
+                    typeof manageOpenPaperPosition ===
+                    'function'
+                ) {
+                    manageOpenPaperPosition();
+                }
+
+                return;
+            }
+
+            /*
+             * Son işlemden sonra bekleme süresi.
+             */
+            const lastEntry = Number(
+                localStorage.getItem('v105LastEntryAt') || 0
+            );
+
+            if (
+                lastEntry &&
+                Date.now() - lastEntry < V105_COOLDOWN
+            ) {
+                return;
+            }
+
+            const best = v105GetBestSignal();
+
+            if (!best) {
+                return;
+            }
+
+            const opened = v105OpenPaperTrade(best);
+
+            if (opened) {
+
+                localStorage.setItem(
+                    'v105LastEntryAt',
+                    String(Date.now())
+                );
+
+                console.log(
+                    'V105 otomatik PAPER işlem açıldı:',
+                    best.symbol,
+                    best.side,
+                    best.score
+                );
+            }
+
+        }catch(error){
+
+            console.error(
+                'V105 otomatik döngü hatası:',
+                error
+            );
+
+        }
+
+    }
+
+    window.startV105Auto = function(){
+
+        if (v105AutoTimer) {
+            console.log(
+                'V105 otomatik sistem zaten çalışıyor.'
+            );
+            return;
+        }
+
+        v105AutoTimer = setInterval(
+            v105AutoCycle,
+            V105_INTERVAL
+        );
+
+        console.log(
+            'V105 otomatik PAPER sistem başlatıldı.'
+        );
+
+        v105AutoCycle();
+
+    };
+
+    window.stopV105Auto = function(){
+
+        if (v105AutoTimer) {
+
+            clearInterval(v105AutoTimer);
+            v105AutoTimer = null;
+
+        }
+
+        console.log(
+            'V105 otomatik PAPER sistem durduruldu.'
+        );
+
+    };
+
+    window.runV105AutoOnce = function(){
+
+        v105AutoCycle();
+
+    };
+
+})();
