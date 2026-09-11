@@ -1464,7 +1464,7 @@ function savePaperTrade(){
 
     );
 
-}
+
 
     if($('tradeTP1'))
         $('tradeTP1').value=p.tp1;
