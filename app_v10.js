@@ -3436,3 +3436,5 @@ function manageOpenPaperPosition(){
     };
 
 })();
+
+
